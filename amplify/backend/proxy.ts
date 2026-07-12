@@ -65,12 +65,26 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
       imageCode = lambda.DockerImageCode.fromImageAsset(PROXY_IMAGE_DIR);
     }
 
+    // Razorpay test-mode secrets are OPT-IN (set AMC_ENABLE_LIVE_SECRETS=1 in the
+    // Amplify build environment AFTER creating the two secrets in Amplify Console
+    // -> Hosting -> Secrets). Default off: DEMO_MODE=cached needs no keys, and
+    // referencing never-created secrets would fail the CloudFormation deploy on
+    // an unresolvable {{resolve:ssm-secure:...}} reference.
+    const liveSecrets: Record<string, string> =
+      process.env.AMC_ENABLE_LIVE_SECRETS === '1'
+        ? {
+            RAZORPAY_KEY_ID: resolveBackendSecret(stack, 'RAZORPAY_KEY_ID'),
+            RAZORPAY_KEY_SECRET: resolveBackendSecret(stack, 'RAZORPAY_KEY_SECRET'),
+          }
+        : {};
+
     const proxyFn = new lambda.DockerImageFunction(stack, 'AmcProxyFunction', {
       functionName: 'amc-proxy',
       code: imageCode,
       memorySize: 1024,
       timeout: Duration.seconds(30),
       environment: {
+        ...liveSecrets,
         // CONTRACTS.md §2 — cloud Lambda always runs the dynamodb-backed
         // stores (ephemeral, concurrent invocations -> must be shared +
         // atomic). Local docker-compose uses memory/jsonl instead.
@@ -92,15 +106,6 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
         // boto3's default region resolution (CONTRACTS.md §2) already works
         // with no wiring needed.
         //
-        // Razorpay test-mode credentials — see resolveBackendSecret in
-        // lib/helper.ts. Set the actual values with:
-        //   npx ampx sandbox secret set RAZORPAY_KEY_ID
-        //   npx ampx sandbox secret set RAZORPAY_KEY_SECRET
-        // (local sandbox) or Amplify Console -> App settings -> Secrets, per
-        // branch (deployed). Never hardcoded; only read by the MCP client
-        // when DEMO_MODE=live.
-        RAZORPAY_KEY_ID: resolveBackendSecret(stack, 'RAZORPAY_KEY_ID'),
-        RAZORPAY_KEY_SECRET: resolveBackendSecret(stack, 'RAZORPAY_KEY_SECRET'),
       },
     });
 
