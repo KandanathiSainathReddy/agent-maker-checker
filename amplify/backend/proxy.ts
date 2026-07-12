@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url';
 import { Duration } from 'aws-cdk-lib';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { getOrCreateStack, resolveBackendSecret, type Utils } from './lib/helper';
 import type { DataConfigured } from './data';
 
@@ -25,6 +27,7 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROXY_IMAGE_DIR = path.join(MODULE_DIR, '..', 'functions', 'proxy');
 
 export interface ProxyConfigured {
+  apiUrl: string;
   functionUrl: string;
   proxyFunction: lambda.DockerImageFunction;
 }
@@ -133,7 +136,27 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
       },
     });
 
-    return { functionUrl: fnUrl.url, proxyFunction: proxyFn };
+    // Browser-facing endpoint: an HttpApi (API Gateway v2), NOT the raw Function
+    // URL. The `execute-api.<region>.amazonaws.com` domain resolves on every
+    // network; the newer `*.lambda-url.on.aws` Function-URL domain fails to
+    // resolve on some ISP/OS resolvers, which reads as "proxy not connected" in
+    // the dashboard even though the Lambda is healthy. One greedy route forwards
+    // everything to the container Lambda; FastAPI does the real routing. Public
+    // (no authorizer) — test-mode demo only; CORS "*" for the same reason.
+    // Mirrors CloudMorph's HttpApi + HttpLambdaIntegration pattern (quaestor.ts).
+    const httpApi = new HttpApi(stack, 'AmcProxyHttpApi', {
+      apiName: 'amc-proxy-api',
+      corsPreflight: {
+        allowOrigins: ['*'],
+        allowMethods: [CorsHttpMethod.ANY],
+        allowHeaders: ['*'],
+      },
+    });
+    const integration = new HttpLambdaIntegration('AmcProxyIntegration', proxyFn);
+    httpApi.addRoutes({ path: '/{proxy+}', methods: [HttpMethod.ANY], integration });
+    httpApi.addRoutes({ path: '/', methods: [HttpMethod.ANY], integration });
+
+    return { apiUrl: httpApi.apiEndpoint, functionUrl: fnUrl.url, proxyFunction: proxyFn };
   };
 
   return { manifest, configure };

@@ -2,7 +2,10 @@
 // Routes + shapes are frozen in infra/CONTRACTS.md §1. Money is integer paise
 // on the wire; formatting to INR happens only in the display layer (main.js).
 
-const PING_TIMEOUT_MS = 1500;
+// 12s, not 1.5s: a cold container-Lambda takes ~8s to first respond, so a short
+// ping would read a healthy proxy as unreachable and leave the dashboard stuck
+// in SIMULATED on first load.
+const PING_TIMEOUT_MS = 12000;
 export const POLL_MS = 4000;
 
 function stripTrailingSlash(url) {

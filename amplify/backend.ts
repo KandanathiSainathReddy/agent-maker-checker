@@ -46,6 +46,9 @@ const proxyConfigured = proxyResources.configure(backend, shared, dataTables);
 // and falls back to simulated mode if unreachable.
 backend.addOutput({
   custom: {
-    proxyUrl: proxyConfigured.functionUrl,
+    // The HttpApi (execute-api) endpoint — resolves on every network, unlike the
+    // raw Lambda Function URL domain. See proxy.ts for why.
+    proxyUrl: proxyConfigured.apiUrl,
+    proxyFunctionUrl: proxyConfigured.functionUrl,
   },
 });

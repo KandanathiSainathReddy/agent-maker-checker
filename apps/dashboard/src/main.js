@@ -412,7 +412,10 @@ async function refreshLiveData() {
 async function initMode() {
   const cfg = await resolveProxyConfig();
   if (cfg.proxyUrl) {
-    const ok = await pingProxy(cfg.proxyUrl);
+    setBadge("sim", "connecting to enforcement proxy…");
+    // Two attempts: the first may hit a cold Lambda (image pull + init).
+    let ok = await pingProxy(cfg.proxyUrl);
+    if (!ok) ok = await pingProxy(cfg.proxyUrl);
     if (ok) {
       MODE.live = true;
       MODE.proxyUrl = cfg.proxyUrl;
