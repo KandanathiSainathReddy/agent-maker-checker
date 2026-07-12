@@ -64,6 +64,29 @@ function pgShortJSON(obj, max = 160) {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+// Build a "Razorpay MCP" artifact card (clickable payment link / refund) from
+// an upstream result's data object — the visible proof that an allowed call
+// executed on the real rails. Returns "" when data isn't a recognisable
+// artifact. `mode` is "live" (real MCP → Razorpay) or "cached" (replayed).
+function pgRzpCard(data, tool, mode) {
+  if (!data || typeof data !== "object") return "";
+  const shortUrl = typeof data.short_url === "string" ? data.short_url : null;
+  const rid = data.id ? String(data.id) : null;
+  if (!shortUrl && !(rid && /^(plink_|rfnd_|pl_|pay_)/.test(rid))) return "";
+  const amt = data.amount != null ? " · " + inr(data.amount) : "";
+  const meta = [];
+  if (rid) meta.push(escapeHtml(rid));
+  if (data.status) meta.push(escapeHtml(data.status));
+  const tag = mode === "live" ? "Razorpay MCP · live" : mode === "cached" ? "Razorpay MCP · cached" : "Razorpay MCP";
+  return (
+    `<div class="rzp-card">` +
+      `<div class="rzp-head"><span class="rzp-tag">${escapeHtml(tag)}</span> ${escapeHtml(tool || "executed")}${amt}</div>` +
+      (shortUrl ? `<a class="rzp-link" href="${escapeHtml(shortUrl)}" target="_blank" rel="noopener">${escapeHtml(shortUrl)} ↗</a>` : "") +
+      (meta.length ? `<div class="rzp-meta">${meta.join(" · ")}</div>` : "") +
+    `</div>`
+  );
+}
+
 function pgRenderEvent(ev) {
   const type = ev && ev.type;
   const div = document.createElement("div");
@@ -76,17 +99,25 @@ function pgRenderEvent(ev) {
       div.className = "pg-ev pg-ev-toolcall";
       div.innerHTML = `<span class="pg-ev-label">calls</span><span class="pg-chip">${escapeHtml(pgArgChip(ev.tool || "tool", ev.arguments))}</span>`;
       break;
-    case "tool_result":
+    case "tool_result": {
+      const card = pgRzpCard(ev.result, ev.tool, ev.mode);
+      if (card) { div.className = "pg-ev pg-ev-decision"; div.innerHTML = card; break; }
       div.className = "pg-ev pg-ev-toolresult";
       div.innerHTML = `<span class="pg-ev-label">result</span><span class="pg-ev-body mono">${escapeHtml(ev.tool ? ev.tool + " → " + pgShortJSON(ev.result) : pgShortJSON(ev.result))}</span>`;
       break;
+    }
     case "proxy_decision": {
       const decision = (ev.decision || "—").toLowerCase();
       const cls = decision === "allow" ? "allow" : decision === "deny" ? "deny" : "escalate";
       div.className = "pg-ev pg-ev-decision";
+      // On an allowed call that actually executed, the real Razorpay artifact
+      // rides on upstream_result.data — surface it as a clickable card.
+      const up = ev.upstream_result;
+      const card = up && up.ok ? pgRzpCard(up.data, ev.tool, up.mode) : "";
       div.innerHTML =
         `<span class="verdict ${cls}">${escapeHtml(ev.decision || "—")}</span>` +
-        `<span class="pg-ev-body">${escapeHtml(ev.reason || "")} <span class="pid">[${escapeHtml(ev.policy_id || "—")}]</span></span>`;
+        `<span class="pg-ev-body">${escapeHtml(ev.reason || "")} <span class="pid">[${escapeHtml(ev.policy_id || "—")}]</span></span>` +
+        card;
       break;
     }
     case "proxy_error":
