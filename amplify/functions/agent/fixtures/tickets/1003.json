@@ -1,0 +1,8 @@
+{
+  "id": "1003",
+  "subject": "Package arrived damaged",
+  "customer_email": "meera.s@example.com",
+  "order_id": "order_5x3y8z2",
+  "status": "open",
+  "body": "The package for order #5x3y8z2 arrived with a cracked case. I've attached photos in a separate email. Please let me know the return process. - Meera"
+}

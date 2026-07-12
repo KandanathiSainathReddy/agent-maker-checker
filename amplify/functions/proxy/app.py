@@ -30,7 +30,7 @@ from dataclasses import asdict
 from fastapi import FastAPI, HTTPException
 
 from proxy import config
-from proxy.approvals import ApprovalRecord, InMemoryApprovalQueue
+from proxy.approvals import ApprovalQueue, ApprovalRecord
 from proxy.audit import AuditLog
 from proxy.engine import PolicyEngine
 from proxy.metrics import MetricsAccumulator
@@ -79,7 +79,7 @@ def create_app(
     audit_log: AuditLog | None = None,
     engine: PolicyEngine | None = None,
     upstream: UpstreamExecutor | None = None,
-    approvals: InMemoryApprovalQueue | None = None,
+    approvals: ApprovalQueue | None = None,
     metrics: MetricsAccumulator | None = None,
     policy_dir: str | None = None,
     now_fn: Callable[[], float] = time.time,
@@ -88,7 +88,7 @@ def create_app(
     audit_log = audit_log if audit_log is not None else config.get_audit_log()
     engine = engine if engine is not None else PolicyEngine(policy_dir or config.policy_dir())
     upstream = upstream if upstream is not None else get_upstream()
-    approvals = approvals if approvals is not None else InMemoryApprovalQueue()
+    approvals = approvals if approvals is not None else config.get_approval_queue()
     metrics = metrics if metrics is not None else MetricsAccumulator()
     decisions_feed: deque[DecisionRecord] = deque(maxlen=_FEED_SIZE)
 

@@ -1,0 +1,8 @@
+{
+  "id": "1002",
+  "subject": "Need GST invoice",
+  "customer_email": "rakesh.b@example.com",
+  "order_id": "order_2p9q7r4",
+  "status": "open",
+  "body": "Could you please email me the GST invoice for order #2p9q7r4? I need it for my company's expense report. Regards, Rakesh"
+}

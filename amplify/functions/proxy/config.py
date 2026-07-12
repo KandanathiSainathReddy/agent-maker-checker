@@ -1,11 +1,12 @@
-"""Environment variables (infra/CONTRACTS.md §2) + StateStore/AuditLog factories.
+"""Environment variables (infra/CONTRACTS.md §2) + StateStore/AuditLog/
+ApprovalQueue factories.
 
-``get_state_store()`` and ``get_audit_log()`` are memoized process-wide
-singletons: the in-memory backend only works at all if every request shares
-one instance, and the point of the Dynamo backend is a shared instance across
-concurrent Lambda invocations. Tests that want isolation construct
-``InMemoryStateStore()`` / ``JsonlAuditLog(tmp_path)`` directly instead of
-going through this module.
+``get_state_store()``, ``get_audit_log()``, and ``get_approval_queue()`` are
+memoized process-wide singletons: the in-memory backend only works at all if
+every request shares one instance, and the point of the Dynamo backend is a
+shared instance across concurrent Lambda invocations. Tests that want
+isolation construct ``InMemoryStateStore()`` / ``JsonlAuditLog(tmp_path)`` /
+``InMemoryApprovalQueue()`` directly instead of going through this module.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+from proxy.approvals import ApprovalQueue, DynamoApprovalQueue, InMemoryApprovalQueue
 from proxy.audit import AuditLog, DynamoAuditLog, JsonlAuditLog
 from proxy.state import DynamoStateStore, InMemoryStateStore, StateStore
 
@@ -35,6 +37,10 @@ def state_backend() -> str:
 
 def audit_backend() -> str:
     return _env("AUDIT_BACKEND", "jsonl")
+
+
+def approvals_backend() -> str:
+    return _env("APPROVALS_BACKEND", "memory")
 
 
 def audit_log_path() -> str:
@@ -81,3 +87,12 @@ def get_audit_log() -> AuditLog:
             ddb_audit_table(), endpoint_url=ddb_endpoint_url(), region_name=aws_region()
         )
     return JsonlAuditLog(audit_log_path())
+
+
+@lru_cache(maxsize=1)
+def get_approval_queue() -> ApprovalQueue:
+    if approvals_backend() == "dynamodb":
+        return DynamoApprovalQueue(
+            ddb_approvals_table(), endpoint_url=ddb_endpoint_url(), region_name=aws_region()
+        )
+    return InMemoryApprovalQueue()

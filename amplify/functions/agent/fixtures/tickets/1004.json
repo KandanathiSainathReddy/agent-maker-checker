@@ -1,0 +1,8 @@
+{
+  "id": "1004",
+  "subject": "Can I get a payment link?",
+  "customer_email": "arjun.v@example.com",
+  "order_id": "order_1a2b3c4",
+  "status": "open",
+  "body": "Hi, I'd like to pay the balance of ₹850 for order #1a2b3c4 via UPI. Could you send me a payment link? Thanks, Arjun"
+}

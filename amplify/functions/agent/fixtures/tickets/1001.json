@@ -1,0 +1,8 @@
+{
+  "id": "1001",
+  "subject": "Where is my order?",
+  "customer_email": "priya.k@example.com",
+  "order_id": "order_8h2n4k1",
+  "status": "open",
+  "body": "Hi, I placed order #8h2n4k1 three days ago and it still shows 'processing'. Can you tell me when it will ship? Thanks, Priya"
+}
