@@ -7,6 +7,7 @@
 // Agent B ships there is exactly what runs here — no separate ECR pipeline.
 
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { Duration } from 'aws-cdk-lib';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -17,9 +18,11 @@ const PROXY_STACK = 'amc-proxy';
 
 // This file lives at amplify/backend/proxy.ts; the proxy Dockerfile lives at
 // amplify/functions/proxy/. Climb one level to amplify/, then into
-// functions/proxy/. Using __dirname (not process.cwd()) so this resolves
-// correctly regardless of the directory `ampx` is invoked from.
-const PROXY_IMAGE_DIR = path.join(__dirname, '..', 'functions', 'proxy');
+// functions/proxy/. amplify/ is ESM ("type": "module"), so __dirname does not
+// exist — derive it from import.meta.url. Anchoring here (not process.cwd())
+// keeps the path correct regardless of where `ampx` is invoked from.
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const PROXY_IMAGE_DIR = path.join(MODULE_DIR, '..', 'functions', 'proxy');
 
 export interface ProxyConfigured {
   functionUrl: string;

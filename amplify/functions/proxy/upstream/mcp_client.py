@@ -369,3 +369,13 @@ class MCPUpstream(UpstreamExecutor):
     async def aclose(self) -> None:
         """Best-effort cleanup of the spawned subprocess, if any."""
         await self._reset_session()
+
+    # Async context manager: one-shot callers (scripts, tests) get subprocess
+    # cleanup for free — skipping aclose() leaves the child transport to be
+    # torn down by GC after the event loop closes, which asyncio reports as a
+    # noisy (harmless) "Event loop is closed" warning.
+    async def __aenter__(self) -> MCPUpstream:
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        await self.aclose()
