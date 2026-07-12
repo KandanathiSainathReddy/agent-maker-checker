@@ -1,0 +1,26 @@
+services:
+  proxy:
+    build: ./proxy
+    ports:
+      - "${PROXY_PORT:-8000}:8000"
+    env_file: .env
+    volumes:
+      - ./policies:/app/policies:ro
+      - ./data:/app/data
+    depends_on:
+      - razorpay-mcp
+
+  # Razorpay's open-source MCP server (Go), self-hosted, test-mode keys.
+  # Image/entrypoint finalized in Phase 2 — see infra/razorpay-mcp.md
+  razorpay-mcp:
+    image: razorpay/mcp
+    environment:
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - PROXY_URL=http://proxy:8000
