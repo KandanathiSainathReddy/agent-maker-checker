@@ -7,7 +7,7 @@
 //
 // No Amplify-managed (esbuild-bundled) functions here, so `manifest` is
 // empty — the tables are raw CDK resources created directly in `configure()`,
-// the same pattern CloudMorph's tessera.ts uses for its DDB tables.
+// a small raw-CDK factory pattern for the DynamoDB tables.
 
 import { RemovalPolicy } from 'aws-cdk-lib';
 import * as ddb from 'aws-cdk-lib/aws-dynamodb';

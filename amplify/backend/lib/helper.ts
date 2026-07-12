@@ -1,7 +1,7 @@
 // amplify/backend/lib/helper.ts
 //
 // Small shared utilities for the amplify/backend/* resource factories.
-// Mirrors CloudMorph's amplify/backend/lib/helper.ts, trimmed to what this
+// A small helper for raw-CDK resources, trimmed to what this
 // single-app repo actually needs:
 //   - resolveBackendEntry   — normalizes a TS entry path (kept for parity /
 //                             future use; neither data.ts nor proxy.ts
@@ -27,8 +27,8 @@ import { secret } from '@aws-amplify/backend';
 /**
  * Normalizes relative backend resource paths so they resolve correctly when
  * Amplify runs from the repo root. Not currently exercised — kept for parity
- * with CloudMorph's helper.ts and for any future TS Lambda this repo adds
- * via `defineFunction`.
+ * with the raw-CDK resource pattern and for any future TS Lambda this repo
+ * adds via `defineFunction`.
  */
 export const resolveBackendEntry = (entry: string): string => {
   let normalized = entry;
@@ -49,7 +49,7 @@ export const resolveBackendEntry = (entry: string): string => {
 /**
  * Returns the named CDK stack if it already exists on this synth (e.g. a
  * sibling resource factory created it first), otherwise creates it via
- * `backend.createStack`. Mirrors CloudMorph's tessera.ts `getOrCreateStack`.
+ * `backend.createStack`. A getOrCreateStack helper for nested raw-CDK stacks.
  */
 export const getOrCreateStack = (backend: any, name: string): cdk.Stack => {
   const scope = backend?.stack ?? backend;

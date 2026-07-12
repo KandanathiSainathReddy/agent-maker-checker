@@ -44,8 +44,7 @@ interface ProxyResources {
 export const createProxyResources = (utils: Utils): ProxyResources => {
   // The proxy ships as a single container image — no esbuild-bundled
   // Amplify-managed function, so nothing goes in `manifest`. It's built
-  // directly as raw CDK inside `configure()`, same as CloudMorph's Fargate
-  // services in tessera.ts.
+  // directly as raw CDK inside `configure()`.
   const manifest = {};
 
   const configure = (
@@ -59,8 +58,8 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
     // (fromImageAsset). Escape hatch: Amplify Hosting's build container may not
     // provide a Docker daemon — if AMC_ECR_IMAGE ("<repoName>:<tag>") is set in
     // the build environment, reference that pre-pushed ECR image instead
-    // (CloudMorph's fromEcr pattern; image pushed out-of-band from a machine
-    // with Docker).
+    // (the fromEcr pattern; image pushed out-of-band from a machine with
+    // Docker).
     const ecrImage = process.env.AMC_ECR_IMAGE;
     let imageCode: lambda.DockerImageCode;
     if (ecrImage) {
@@ -143,7 +142,7 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
     // the dashboard even though the Lambda is healthy. One greedy route forwards
     // everything to the container Lambda; FastAPI does the real routing. Public
     // (no authorizer) — test-mode demo only; CORS "*" for the same reason.
-    // Mirrors CloudMorph's HttpApi + HttpLambdaIntegration pattern (quaestor.ts).
+    // HttpApi + HttpLambdaIntegration in front of the container Lambda.
     const httpApi = new HttpApi(stack, 'AmcProxyHttpApi', {
       apiName: 'amc-proxy-api',
       corsPreflight: {
