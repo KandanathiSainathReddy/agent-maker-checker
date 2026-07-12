@@ -11,3 +11,9 @@ build/
 data/
 *.sqlite
 .DS_Store
+
+# Amplify Gen 2 / CDK
+.amplify/
+amplify_outputs*.json
+cdk.out/
+*.tsbuildinfo

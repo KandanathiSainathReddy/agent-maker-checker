@@ -1,25 +1,40 @@
 services:
+  # THE PRODUCT — FastAPI enforcement proxy + policy engine.
+  # Local run uses in-memory state + JSONL audit (single process → bulletproof, no AWS).
   proxy:
     build: ./proxy
     ports:
       - "${PROXY_PORT:-8000}:8000"
     env_file: .env
+    environment:
+      - STATE_BACKEND=${STATE_BACKEND:-memory}
+      - AUDIT_BACKEND=${AUDIT_BACKEND:-jsonl}
+      - POLICY_DIR=/app/policies
     volumes:
-      - ./policies:/app/policies:ro
+      - ./policies:/app/policies:ro   # hot-reload policies without a rebuild
       - ./data:/app/data
     depends_on:
       - razorpay-mcp
 
   # Razorpay's open-source MCP server (Go), self-hosted, test-mode keys.
-  # Image/entrypoint finalized in Phase 2 — see infra/razorpay-mcp.md
+  # Transport/image finalized in Phase 2 — see infra/razorpay-mcp.md
   razorpay-mcp:
     image: razorpay/mcp
     environment:
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
 
+  # DynamoDB Local — mirrors the cloud state/audit backend so the concurrency test
+  # exercises real atomic semantics (not a mock). Host port 8001 → container 8000.
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "8001:8000"
+
+  # React dashboard (Vite) — decision feed, HITL queue, live counters.
   dashboard:
-    build: ./dashboard
+    build: ./apps/dashboard
     ports:
       - "3000:3000"
     environment:

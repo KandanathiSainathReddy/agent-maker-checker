@@ -1,0 +1,25 @@
+{
+  "name": "agent-maker-checker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Maker-checker for AI agents — enforcement proxy between an AI agent and Razorpay test rails",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:dashboard": "npm --workspace apps/dashboard run dev",
+    "build:dashboard": "npm --workspace apps/dashboard run build",
+    "ampx:sandbox": "ampx sandbox",
+    "ampx:deploy": "ampx pipeline-deploy",
+    "typecheck": "tsc -p amplify/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.4.0",
+    "@aws-amplify/backend-cli": "^1.4.0",
+    "aws-cdk-lib": "^2.158.0",
+    "constructs": "^10.3.0",
+    "esbuild": "^0.23.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  }
+}
