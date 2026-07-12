@@ -14,15 +14,21 @@ Running log of engineering decisions, trade-offs, and actual time spent per phas
 - **2026-07-12 — (Phase 1, Agent A) Added root `pytest.ini` (`pythonpath = .`) alongside the requested root `ruff.toml`.** Needed so `proxy.*`-style absolute imports (used throughout `proxy/`, matching the `from proxy.upstream.factory import get_upstream` pattern in infra/CONTRACTS.md §5) resolve identically for `pytest -q` run from the repo root. Not itself a contract change, just build glue required to hit "pytest -q green from repo root."
 - **2026-07-12 — Flag for whoever owns `proxy/Dockerfile`/deploy (orchestrator/Agent C): the image's flat layout may not match `proxy.*`-prefixed imports.** `docker-compose.yml` builds with context `./proxy` and the Dockerfile does `COPY . .` into `/app`, then runs `uvicorn app:app` — inside the container there is no `proxy` parent package, so any `from proxy.x import y` (used throughout this codebase, including the upstream try/except itself) would raise `ModuleNotFoundError` at import time, not just for the intentionally-caught upstream case. This was out of scope to fix here (Dockerfile is orchestrator-owned and Phase 2 wiring hasn't landed), but the image will need either a restructured build context (keep the `proxy/` package name inside the image, e.g. `WORKDIR /app` + `COPY . ./proxy` + `CMD ["uvicorn", "proxy.app:app", ...]`) or an equivalent fix before `docker compose up` will actually serve traffic.
 - **2026-07-12 — (Phase 1, Agent A) Chosen velocity/cap numbers.** `per_call_amount_cap` default ₹1,50,000 (₹2,00,000 for `create_payment_link`); `velocity_aggregation` threshold ₹1,50,000 over an 86,400s (24h) tumbling window; `refund_to_capture_ratio` cap 50% over the same 24h window. These match infra/CONTRACTS.md §3's own worked example (₹40,000 × 5 → ₹2,00,000, ₹1,50,000 threshold) exactly, so the shipped policies and the blocking-gate concurrency test agree on the same numbers.
+- **2026-07-12 — (Orchestrator) Reorganized to a clean single-app Amplify layout.** Backend Python moved under `amplify/functions/proxy/`, docker-compose into `infra/`, policies + tests co-located with the proxy; top level trimmed to `amplify/ apps/ infra/` + config. All path references (Lambda `fromImageAsset`, compose build contexts, CI working-dir, `POLICY_DIR`) updated; `git mv` preserved history; full suite re-verified green from the new location.
+- **2026-07-12 — (Orchestrator) Resolved Agent A's container-import flag.** The proxy Dockerfile now copies the source in AS the `proxy` package (`COPY . /app/proxy/`, `PYTHONPATH=/app`, `CMD ["uvicorn", "proxy.app:app", …]`), so `from proxy.x import y` resolves in-container. Verified: the image builds and serves `/healthz`, `/metrics`, `/tool-call` (all HTTP 200).
+- **2026-07-12 — (Orchestrator) DynamoDB concurrency gate verified for real.** Ran the blocking gate against real DynamoDB Local (Python 3.12, in WSL where Docker lives): `test_dynamo_concurrent_record_and_sum_never_loses_updates` PASSES — 5× concurrent `record_and_sum` → exact running sums, zero lost updates, freeze holds, 20 iterations. Supersedes Phase 1's "unverified against real DynamoDB Local" note.
+- **2026-07-12 — (Orchestrator) Dashboard live-mode field names reconciled.** Agent D's `normalizeMetrics` guessed key names; corrected to the proxy's real `/metrics` shape (`rupees_attempted` / `calls_allowed` / `approvals_pending` / `p95_overhead_ms`) plus the rupees→paise conversion (the proxy returns money in rupees only at the display boundary).
+- **2026-07-12 — (Orchestrator) Push via a repo-scoped deploy key, not a collaborator.** Every git identity on the build machine authenticates as CloudMorphAI (read-only on the personal repo). Rather than add CloudMorphAI as a collaborator, a dedicated write **deploy key** pushes to `KandanathiSainathReddy/agent-maker-checker`, wired into the repo's `core.sshCommand`. `git push` runs from the Windows terminal; docker/aws/node builds run from WSL.
 
 ## Time log
 
 | Phase | Scope | Budget | Actual |
 |---|---|---|---|
-| 0 | repo init, layout, README stub, compose skeleton, CI | 1h | in progress |
-| 1 | policy engine + five policies + audit chain + tests | 2.5h | ~2.5h (DynamoDB concurrency test skips locally — no Docker in this environment; passes structurally, unverified against real DynamoDB Local here) |
-| 2 | Razorpay MCP self-host + wiring + cached fallback | 2h | — |
-| 3 | Nova agent + tools + poisoned-ticket fixture | 1.5h | — |
-| 4 | attack pack + one-click runner | 2h | — |
-| 5 | dashboard + Amplify deploy | 2h | — |
-| 6 | README final, demo script, integration, video | 1h | — |
+| 0 | repo init, layout, README stub, compose skeleton, CI | 1h | done |
+| 1 | policy engine + five policies + audit chain + tests | 2.5h | done — 62 passed/1 skipped; DynamoDB concurrency gate VERIFIED on real DynamoDB Local (WSL) |
+| 2 | Razorpay MCP self-host + wiring + cached fallback | 2h | done — stdio MCP client + cached fixtures, 21/21 upstream tests green |
+| — | reorg to amplify/functions layout + integration + first push | — | done — clean layout, container serves, main pushed |
+| 3 | Nova agent + tools + poisoned-ticket fixture | 1.5h | pending |
+| 4 | attack pack + one-click runner | 2h | pending |
+| 5 | dashboard + Amplify deploy | 2h | dashboard done (Vite, live/sim switch); Amplify deploy pending the app |
+| 6 | README final, demo script, integration, video | 1h | README done; demo script + video pending |

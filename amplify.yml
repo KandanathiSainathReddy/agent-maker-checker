@@ -1,79 +1,37 @@
 version: 1
-# agent-maker-checker — single-app Amplify Gen 2 build spec (CONTRACTS.md §6/§7).
+# agent-maker-checker — single fullstack Amplify Gen 2 build spec.
 #
-# Two `applications` entries share one Amplify App:
-#   1. appRoot: .              — synthesizes + deploys amplify/backend.ts
-#                                 (the 3 DynamoDB tables + the proxy container
-#                                 Lambda), emits amplify_outputs.json.
-#   2. appRoot: apps/dashboard — builds the Vite dashboard, which reads
-#                                 amplify_outputs.json -> custom.proxyUrl at
-#                                 build/runtime to find the live proxy.
+# One Amplify app (connected at repo root) builds both tiers in one job:
+#   backend  — synthesizes + deploys amplify/backend.ts via `ampx pipeline-deploy`
+#              (3 on-demand DynamoDB tables + the proxy container Lambda) and
+#              writes amplify_outputs.json (incl. custom.proxyUrl) at repo root.
+#   frontend — builds the Vite dashboard workspace and ships amplify_outputs.json
+#              alongside it so the page can find the live proxy and flip its
+#              badge to LIVE (falls back to simulated mode if absent).
 #
-# Mirrors CloudMorph's amplify.yml `applications:` array, simplified: no
-# shared shell script (CloudMorph's scripts/amplify-app.sh) — this repo only
-# has one frontend, so the commands are inlined directly below.
-applications:
-  - appRoot: .
-    env:
-      variables:
-        # REQUIRED — fill in before the first deploy. Find it in the Amplify
-        # Console URL (console.aws.amazon.com/amplify/apps/<THIS_VALUE>) after
-        # running `amplify app create` / creating the app via the console.
-        # `ampx pipeline-deploy` needs it to know which Amplify App + branch
-        # backend to target.
-        BACKEND_APP_ID: "REPLACE_WITH_AMPLIFY_APP_ID"
-    backend:
-      phases:
-        preBuild:
-          commands:
-            - npm ci
-        build:
-          commands:
-            - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $BACKEND_APP_ID
-      artifacts:
-        baseDirectory: .
-        files:
-          - amplify_outputs.json
-    frontend:
-      # No frontend build in the backend app entry — Amplify still requires
-      # this section to exist so amplify_outputs.json (written by the backend
-      # phase above) is captured as an artifact and made available to the
-      # apps/dashboard app entry below.
-      phases:
-        preBuild:
-          commands:
-            - "true"
-        build:
-          commands:
-            - "true"
-      artifacts:
-        baseDirectory: .
-        files:
-          - amplify_outputs.json
-
-  - appRoot: apps/dashboard
-    env:
-      variables:
-        BACKEND_APP_ID: "REPLACE_WITH_AMPLIFY_APP_ID"
-    frontend:
-      phases:
-        preBuild:
-          commands:
-            - npm ci
-        build:
-          commands:
-            - npm run build
-      artifacts:
-        # Vite's default build output directory.
-        baseDirectory: dist
-        files:
-          - "**/*"
-      cache:
-        paths:
-          - node_modules/**/*
-    # SPA rewrite: any path without a file extension falls back to
-    # index.html so client-side routing works on refresh/deep links.
-    customRules:
-      - source: </^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>
-        target: /index.html
-        status: 200
+# $AWS_APP_ID and $AWS_BRANCH are provided by Amplify's build environment —
+# no placeholders to fill.
+backend:
+  phases:
+    build:
+      commands:
+        - npm ci
+        - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # node_modules persists from the backend phase in the same build
+        # container; install only if the backend phase didn't run.
+        - '[ -d node_modules ] || npm ci'
+    build:
+      commands:
+        - npm run build:dashboard
+        - cp amplify_outputs.json apps/dashboard/dist/amplify_outputs.json
+  artifacts:
+    baseDirectory: apps/dashboard/dist
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*

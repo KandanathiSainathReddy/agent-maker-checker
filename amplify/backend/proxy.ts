@@ -8,6 +8,7 @@
 
 import * as path from 'path';
 import { Duration } from 'aws-cdk-lib';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { getOrCreateStack, resolveBackendSecret, type Utils } from './lib/helper';
 import type { DataConfigured } from './data';
@@ -48,9 +49,25 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
   ): ProxyConfigured => {
     const stack = getOrCreateStack(backend, PROXY_STACK);
 
+    // Default: CDK builds the image from proxy/Dockerfile at deploy time
+    // (fromImageAsset). Escape hatch: Amplify Hosting's build container may not
+    // provide a Docker daemon — if AMC_ECR_IMAGE ("<repoName>:<tag>") is set in
+    // the build environment, reference that pre-pushed ECR image instead
+    // (CloudMorph's fromEcr pattern; image pushed out-of-band from a machine
+    // with Docker).
+    const ecrImage = process.env.AMC_ECR_IMAGE;
+    let imageCode: lambda.DockerImageCode;
+    if (ecrImage) {
+      const [repoName, tag] = ecrImage.split(':');
+      const repo = ecr.Repository.fromRepositoryName(stack, 'AmcProxyEcr', repoName);
+      imageCode = lambda.DockerImageCode.fromEcr(repo, { tagOrDigest: tag || 'latest' });
+    } else {
+      imageCode = lambda.DockerImageCode.fromImageAsset(PROXY_IMAGE_DIR);
+    }
+
     const proxyFn = new lambda.DockerImageFunction(stack, 'AmcProxyFunction', {
       functionName: 'amc-proxy',
-      code: lambda.DockerImageCode.fromImageAsset(PROXY_IMAGE_DIR),
+      code: imageCode,
       memorySize: 1024,
       timeout: Duration.seconds(30),
       environment: {
@@ -59,6 +76,7 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
         // atomic). Local docker-compose uses memory/jsonl instead.
         STATE_BACKEND: 'dynamodb',
         AUDIT_BACKEND: 'dynamodb',
+        APPROVALS_BACKEND: 'dynamodb',
         DDB_STATE_TABLE: dataTables.stateTable.tableName,
         DDB_AUDIT_TABLE: dataTables.auditTable.tableName,
         DDB_APPROVALS_TABLE: dataTables.approvalsTable.tableName,

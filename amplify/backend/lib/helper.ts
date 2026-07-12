@@ -54,7 +54,11 @@ export const resolveBackendEntry = (entry: string): string => {
 export const getOrCreateStack = (backend: any, name: string): cdk.Stack => {
   const scope = backend?.stack ?? backend;
   const existing = scope?.node?.tryFindChild(name) as cdk.Stack | undefined;
-  return existing ?? backend.createStack(name);
+  const stack = existing ?? backend.createStack(name);
+  // Cost attribution: every resource in this app's stacks carries this tag.
+  // The `agent-maker-checker-monthly-100usd` AWS Budget filters on it.
+  cdk.Tags.of(stack).add('project', 'agent-maker-checker');
+  return stack;
 };
 
 export interface Utils {
