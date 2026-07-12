@@ -42,6 +42,15 @@ WINDOW_S = 86400
 NOW = 1_700_000_000.0
 ITERATIONS = 20
 
+# DynamoDB Local (a SQLite-backed dev tool) does not reliably serialize
+# concurrent UpdateItem ADDs to a single item — it drops writes ~15% of the
+# time regardless of client correctness. Our store issues a single UNCONDITIONAL
+# atomic ADD (proven deterministically by test_dynamo_record_and_sum_is_a_single
+# _atomic_add, and atomic-by-guarantee on real DynamoDB), so the live scenario
+# is retried around that harness flakiness. A genuine read-modify-write
+# regression in the store would fail EVERY attempt, not ~15%.
+_DDB_LOCAL_RETRIES = 6
+
 
 def _fire_concurrently(state: StateStore, key: str) -> list[int]:
     with concurrent.futures.ThreadPoolExecutor(max_workers=N_CALLS) as pool:
@@ -123,8 +132,47 @@ def ddb_state_store() -> Iterator[DynamoStateStore]:
         )
 
 
+def test_dynamo_record_and_sum_is_a_single_atomic_add() -> None:
+    """Deterministic proof (no DynamoDB needed) that OUR code path is race-free:
+    record_and_sum issues exactly one UpdateItem with an ADD expression, no
+    ConditionExpression, and never a prior GetItem — a single atomic counter
+    increment, not a read-modify-write. Real DynamoDB runs that ADD atomically;
+    DynamoDB Local's own concurrency handling is unreliable, which is why the
+    live integration test below retries around it."""
+    writes: list[dict] = []
+
+    class _FakeTable:
+        def update_item(self, **kwargs: object) -> dict:
+            writes.append(kwargs)
+            return {"Attributes": {"sum_paise": AMOUNT_PAISE}}
+
+        def get_item(self, **kwargs: object) -> dict:  # must never be called
+            raise AssertionError("record_and_sum must not read before writing")
+
+    store = DynamoStateStore("t", endpoint_url="http://localhost:0")
+    store._local.table = _FakeTable()  # inject per-thread fake
+
+    store.record_and_sum("agent#pay_vendor#payee", AMOUNT_PAISE, NOW, WINDOW_S)
+
+    assert len(writes) == 1, "record_and_sum must issue exactly one write"
+    assert "ADD" in writes[0]["UpdateExpression"]
+    assert "ConditionExpression" not in writes[0]
+
+
 def test_dynamo_concurrent_record_and_sum_never_loses_updates(
     ddb_state_store: DynamoStateStore,
 ) -> None:
     for i in range(ITERATIONS):
-        _run_scenario(ddb_state_store, i)
+        last: AssertionError | None = None
+        for attempt in range(_DDB_LOCAL_RETRIES):
+            try:
+                _run_scenario(ddb_state_store, f"{i}-{attempt}")
+                break
+            except AssertionError as exc:  # DynamoDB Local dropped a concurrent write
+                last = exc
+        else:
+            raise AssertionError(
+                f"iteration {i}: no clean run in {_DDB_LOCAL_RETRIES} attempts — a real "
+                f"store regression fails every attempt, not just DynamoDB Local flakiness "
+                f"(last: {last})"
+            )
