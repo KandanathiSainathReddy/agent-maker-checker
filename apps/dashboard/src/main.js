@@ -325,16 +325,19 @@ function pick(obj, keys, fallback = null) {
   return fallback;
 }
 function normalizeMetrics(raw) {
+  // Field names per proxy/metrics.py snapshot(). GET /metrics returns money in
+  // RUPEES (rupees_attempted/rupees_moved — the one display-layer exception to
+  // paise-everywhere); these counters work in paise, so multiply back by 100.
   return {
-    attempted: pick(raw, ["attempted_paise", "attempted", "total_attempted_paise"], 0),
-    moved: pick(raw, ["moved_paise", "moved", "total_moved_paise"], 0),
-    allowed: pick(raw, ["allowed", "allow_count"], 0),
-    denied: pick(raw, ["denied", "deny_count"], 0),
-    escalated: pick(raw, ["escalated", "escalate_count"], 0),
+    attempted: Math.round(pick(raw, ["rupees_attempted", "attempted_paise"], 0) * 100),
+    moved: Math.round(pick(raw, ["rupees_moved", "moved_paise"], 0) * 100),
+    allowed: pick(raw, ["calls_allowed", "allowed"], 0),
+    denied: pick(raw, ["calls_denied", "denied"], 0),
+    escalated: pick(raw, ["calls_escalated", "escalated"], 0),
     falseBlocks: pick(raw, ["false_blocks", "falseBlocks"], 0),
-    pending: pick(raw, ["pending", "pending_approvals"], 0),
-    resolved: pick(raw, ["resolved", "resolved_approvals"], 0),
-    p95: pick(raw, ["p95_ms", "p95", "latency_p95_ms", "evaluated_p95_ms"], 0),
+    pending: pick(raw, ["approvals_pending", "pending"], 0),
+    resolved: pick(raw, ["approvals_resolved", "resolved"], 0),
+    p95: pick(raw, ["p95_overhead_ms", "p95_ms", "p95"], 0),
   };
 }
 function normalizeDecision(raw) {

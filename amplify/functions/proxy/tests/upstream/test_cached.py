@@ -10,9 +10,12 @@ import asyncio
 import json
 from pathlib import Path
 
+from proxy.upstream import cached as _cached
 from proxy.upstream.cached import CachedUpstream
 
-FIXTURES_DIR = Path(__file__).resolve().parents[2] / "proxy" / "upstream" / "fixtures"
+# Derive from the package module (robust to where the tree is rooted) rather than
+# path arithmetic off __file__, which breaks when the dir depth changes.
+FIXTURES_DIR = Path(_cached.__file__).resolve().parent / "fixtures"
 
 
 def run(coro):

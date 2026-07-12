@@ -14,11 +14,11 @@ import type { DataConfigured } from './data';
 
 const PROXY_STACK = 'amc-proxy';
 
-// This file lives at amplify/backend/proxy.ts; proxy/Dockerfile lives at
-// <repo-root>/proxy/. Climb two levels out of amplify/backend/ to repo root,
-// then into proxy/. Using __dirname (not process.cwd()) so this resolves
+// This file lives at amplify/backend/proxy.ts; the proxy Dockerfile lives at
+// amplify/functions/proxy/. Climb one level to amplify/, then into
+// functions/proxy/. Using __dirname (not process.cwd()) so this resolves
 // correctly regardless of the directory `ampx` is invoked from.
-const PROXY_IMAGE_DIR = path.join(__dirname, '..', '..', 'proxy');
+const PROXY_IMAGE_DIR = path.join(__dirname, '..', 'functions', 'proxy');
 
 export interface ProxyConfigured {
   functionUrl: string;

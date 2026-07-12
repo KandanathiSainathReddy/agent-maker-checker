@@ -27,13 +27,13 @@ import uuid
 from collections.abc import Iterator
 
 import pytest
+from conftest import DDB_LOCAL_ENDPOINT, ddb_local_available
 
 from proxy.ddb_bootstrap import create_tables, delete_tables
 from proxy.models import ToolCallRequest
 from proxy.policies_impl import velocity_aggregation
 from proxy.policy_types import PolicyContext
 from proxy.state import DynamoStateStore, InMemoryStateStore, StateStore
-from tests.conftest import DDB_LOCAL_ENDPOINT, ddb_local_available
 
 AMOUNT_PAISE = 4_000_000  # Rs 40,000
 N_CALLS = 5

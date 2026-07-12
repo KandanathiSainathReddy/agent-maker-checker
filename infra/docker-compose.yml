@@ -1,18 +1,21 @@
+# Local run for the whole stack. This file lives in infra/, so build contexts and
+# mounts are relative to the repo root via ../ . Bring it up with:
+#   docker compose -f infra/docker-compose.yml up
 services:
   # THE PRODUCT — FastAPI enforcement proxy + policy engine.
   # Local run uses in-memory state + JSONL audit (single process → bulletproof, no AWS).
   proxy:
-    build: ./proxy
+    build: ../amplify/functions/proxy
     ports:
       - "${PROXY_PORT:-8000}:8000"
-    env_file: .env
+    env_file: ../.env
     environment:
       - STATE_BACKEND=${STATE_BACKEND:-memory}
       - AUDIT_BACKEND=${AUDIT_BACKEND:-jsonl}
-      - POLICY_DIR=/app/policies
+      - POLICY_DIR=/app/proxy/policies
     volumes:
-      - ./policies:/app/policies:ro   # hot-reload policies without a rebuild
-      - ./data:/app/data
+      - ../amplify/functions/proxy/policies:/app/proxy/policies:ro  # hot-reload without rebuild
+      - ../data:/app/data
     depends_on:
       - razorpay-mcp
 
@@ -21,7 +24,7 @@ services:
   # (`stdio`; no sse/http), confirmed against its cmd/ source and its own
   # Dockerfile ENTRYPOINT — so there is no port to publish. A stdio MCP
   # server is a subprocess protocol, not a network daemon: the actual live
-  # connection is proxy/upstream/mcp_client.py spawning its own short-lived
+  # connection is the proxy's mcp_client.py spawning its own short-lived
   # `docker run --rm -i ... <image>` (or a local binary — see
   # RAZORPAY_MCP_BIN/RAZORPAY_MCP_ARGS) per call, NOT this container. Under
   # `docker compose up` this service starts, gets stdin EOF immediately, and
@@ -49,7 +52,7 @@ services:
 
   # React dashboard (Vite) — decision feed, HITL queue, live counters.
   dashboard:
-    build: ./apps/dashboard
+    build: ../apps/dashboard
     ports:
       - "3000:3000"
     environment:

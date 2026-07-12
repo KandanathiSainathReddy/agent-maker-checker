@@ -7,17 +7,20 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amplify/functions
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install
-        run: |
-          pip install ruff pytest
-          if [ -f proxy/requirements.txt ]; then pip install -r proxy/requirements.txt; fi
+        run: pip install ruff -r proxy/requirements-dev.txt
       - name: Lint
         run: ruff check .
       - name: Test
-        # exit code 5 = no tests collected (allowed only until Phase 1 lands)
-        run: pytest -q tests/ || [ $? -eq 5 ]
+        # The DynamoDB concurrency gate skips here (no DynamoDB Local in CI); the
+        # in-memory concurrency variant always runs. Run the real gate locally:
+        #   docker compose -f infra/docker-compose.yml up -d dynamodb-local && pytest -q
+        run: pytest -q
