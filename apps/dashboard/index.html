@@ -8,11 +8,16 @@
 <meta name="description" content="Maker-checker for AI agents — a merchant-side spend-control plane that intercepts and evaluates every agent tool call against payments-semantic policies before it reaches Razorpay." />
 </head>
 <body>
-<section id="landing">
+
+<!-- ══ Landing page (route: #/) ═══════════════════════════════════════════ -->
+<section id="landing" class="page">
   <div class="landing-inner">
     <div class="landing-nav">
       <div class="brand">agent<span class="amp">-</span>maker<span class="amp">-</span>checker</div>
-      <span class="landing-pill"><span class="dot live"></span> live · razorpay test rails</span>
+      <div class="landing-pills">
+        <span class="landing-pill"><span class="dot live"></span> live · razorpay test rails</span>
+        <span class="landing-pill nova-pill">⚡ Amazon Nova Lite — chosen for low token cost</span>
+      </div>
     </div>
 
     <div class="landing-grid">
@@ -49,58 +54,178 @@
     </div>
 
     <div class="landing-foot">
-      Built for the <b>Razorpay AI Builder</b> challenge · 12 Jul 2026 &nbsp;—&nbsp;
+      <div class="landing-built">Build started on <b>Sunday, 12 July 2026</b> — for the <b>Razorpay AI Builder</b> role.</div>
       <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span>
     </div>
   </div>
 </section>
 
-<div id="app" class="app-hidden">
-<header>
-  <div>
-    <div class="brand">agent<span class="amp">-</span>maker<span class="amp">-</span>checker</div>
-    <div class="tagline">maker-checker for AI agents · merchant-side spend-control plane</div>
-  </div>
-  <div class="spacer"></div>
-  <span class="badge" id="modeBadge"><span class="dot sim" id="modeDot"></span><span id="modeText">SIMULATED — proxy not connected</span></span>
-  <span class="badge" id="demoBadge">DEMO_MODE=cached</span>
-</header>
-
-<main>
-  <section class="counters" id="counters"></section>
-
-  <div class="toolbar">
-    <span class="grp-label">run scenario:</span>
-    <button class="scn" data-scn="clean">00 · clean pass (20 calls)</button>
-    <button class="scn" data-scn="injection">01 · indirect injection</button>
-    <button class="scn climax" data-scn="structuring">02 · structuring ₹2L → 5×₹40k</button>
-    <button class="scn" data-scn="payeeswap">03 · payee swap</button>
-    <button class="scn" data-scn="flood">04 · velocity flood</button>
-    <button class="scn reset" data-scn="reset">reset</button>
-  </div>
-
-  <div class="grid">
-    <div class="panel">
-      <h2>decision feed <span class="count" id="feedCount">0 events</span></h2>
-      <div class="feed" id="feed"><div class="empty">Press a scenario above — every tool call the agent attempts is intercepted and evaluated here before it reaches Razorpay.</div></div>
+<!-- ══ App shell (routes: #/console, #/playground) ═══════════════════════ -->
+<!-- Hidden until the router shows it; the router drives visibility with inline
+     display so exactly one page is ever visible. -->
+<div id="appShell" style="display:none">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand">agent<span class="amp">-</span>maker<span class="amp">-</span>checker</div>
     </div>
-    <div class="panel">
-      <h2>human approval queue <span class="count" id="qCount">0 pending</span></h2>
-      <div class="queue" id="queue"><div class="empty">No escalations. Actions that need a second pair of eyes land here.</div></div>
+    <nav class="sidebar-nav">
+      <button type="button" class="nav-item" id="navPlayground">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.7 4.6 4.6 1.7-4.6 1.7L12 16l-1.7-4.5L5.7 9.8l4.6-1.7z"/><path d="M18 14.5l.8 2.3 2.3.8-2.3.8-.8 2.3-.8-2.3-2.3-.8 2.3-.8z"/></svg></span>
+        <span>Policy studio</span>
+      </button>
+      <button type="button" class="nav-item" id="navConsole">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.4"/><rect x="13" y="3" width="8" height="8" rx="1.4"/><rect x="3" y="13" width="8" height="8" rx="1.4"/><rect x="13" y="13" width="8" height="8" rx="1.4"/></svg></span>
+        <span>Console</span>
+      </button>
+      <button type="button" class="nav-item" id="navHome">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>
+        <span>Landing</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="badge" id="modeBadge" title="enforcement proxy connection"><span class="dot sim" id="modeDot"></span><span id="modeText">SIMULATED — proxy not connected</span></span>
+      <span class="badge mcp-badge" id="mcpBadge" title="Razorpay MCP status"><span class="dot mcp-unknown" id="mcpDot"></span><span id="mcpText">Razorpay MCP · —</span></span>
     </div>
-  </div>
+  </aside>
 
-  <div class="foot">
-    <a href="#" id="backBtn" class="back-link">← overview</a> &nbsp;·&nbsp;
-    <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span><br/>
-    amounts in INR, evaluated in paise · live decisions come from the deployed enforcement proxy
+  <div class="shell-main">
+    <!-- ── Console page ──────────────────────────────────────────────── -->
+    <section id="view-console" class="page-view">
+      <header class="view-header">
+        <div>
+          <div class="tagline">maker-checker for AI agents · merchant-side spend-control plane</div>
+        </div>
+        <div class="spacer"></div>
+        <span class="badge mcp-badge" id="mcpBadgeEcho" title="Razorpay MCP status"><span class="dot mcp-unknown" id="mcpDotEcho"></span><span id="mcpTextEcho">Razorpay MCP · —</span></span>
+      </header>
+
+      <main>
+        <section class="counters" id="counters"></section>
+
+        <div class="toolbar">
+          <span class="grp-label">run scenario:</span>
+          <button class="scn" data-scn="clean">00 · clean pass (20 calls)</button>
+          <button class="scn" data-scn="injection">01 · indirect injection</button>
+          <button class="scn climax" data-scn="structuring">02 · structuring ₹2L → 5×₹40k</button>
+          <button class="scn" data-scn="payeeswap">03 · payee swap</button>
+          <button class="scn" data-scn="flood">04 · velocity flood</button>
+          <button class="scn reset" data-scn="reset">reset</button>
+        </div>
+
+        <div class="grid">
+          <div class="panel">
+            <h2>decision feed <span class="count" id="feedCount">0 events</span></h2>
+            <div class="feed" id="feed"><div class="empty">Press a scenario above — every tool call the agent attempts is intercepted and evaluated here before it reaches Razorpay.</div></div>
+          </div>
+          <div class="panel">
+            <h2>human approval queue <span class="count" id="qCount">0 pending</span></h2>
+            <div class="queue" id="queue"><div class="empty">No escalations. Actions that need a second pair of eyes land here.</div></div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span><br/>
+          amounts in INR, evaluated in paise · decisions come from the enforcement proxy
+        </div>
+      </main>
+    </section>
+
+    <!-- ── Nova playground page ──────────────────────────────────────── -->
+    <section id="view-playground" class="page-view" style="display:none">
+      <header class="view-header">
+        <div>
+          <div class="tagline">🤖 Policy studio · chat with a live Nova agent, then draft policy changes in plain English</div>
+        </div>
+      </header>
+
+      <main>
+        <div class="pg-info">
+          <div class="pg-info-main">
+            <span class="pg-info-title">Amazon Nova agent</span>
+            <span class="pg-info-model" id="pgModel">model: —</span>
+            <span class="pg-info-tokens" id="pgTokens">0 tokens</span>
+            <span class="pg-info-status" id="pgStatus">not connected</span>
+          </div>
+          <div class="pg-info-how">Type a request. Nova decides which payment tool to call; the enforcement proxy evaluates it before it executes.</div>
+        </div>
+
+        <div class="pg-grid">
+          <div class="panel pg-chat-panel">
+            <h2>chat with Nova</h2>
+            <div class="pg-transcript" id="pgTranscript"><div class="empty" id="pgEmpty">Send a message to start — or click a sample prompt below.</div></div>
+            <div class="pg-samples" id="pgSamples"></div>
+            <div class="pg-inputrow">
+              <input id="pgInput" type="text" placeholder="e.g. Refund ₹1,200 to cust_ravi@oksbi for order #4471" autocomplete="off" />
+              <button id="pgSend" class="btn-primary pg-send">Send</button>
+            </div>
+            <div class="pg-note" id="pgAgentNote"></div>
+          </div>
+
+          <div class="panel pg-admin-panel">
+            <h2>checker admin</h2>
+            <div class="pg-admin-body">
+              <div class="pg-nl-block">
+                <div class="pg-nl-head">
+                  <span class="pg-nl-title">🤖 Nova policy copilot</span>
+                  <span class="pg-nl-subtitle">Nova drafts the change — you review and Apply. Nova never evaluates payments; enforcement stays deterministic.</span>
+                </div>
+                <textarea id="nlPolicyText" class="pg-nl-textarea" rows="3" placeholder="Describe a policy change in plain English… e.g. lower the refund cap to ₹50,000"></textarea>
+                <div class="pg-nl-samples" id="nlPolicySamples"></div>
+                <div class="pg-nl-actions">
+                  <button type="button" id="nlPolicyAsk" class="btn-secondary">Ask Nova</button>
+                </div>
+                <div class="pg-nl-result" id="nlPolicyResult"></div>
+                <div class="pg-note" id="nlPolicyNote"></div>
+              </div>
+
+              <hr class="pg-admin-divider" />
+
+              <div class="pg-admin-row">
+                <label>refund per-call cap (₹)</label>
+                <div class="pg-admin-current" id="pgCapCurrent">current: —</div>
+                <div class="pg-admin-controls">
+                  <input id="pgCapInput" type="number" min="0" step="1" placeholder="e.g. 100000" />
+                  <button id="pgCapApply" class="btn-secondary">Apply</button>
+                </div>
+              </div>
+              <div class="pg-admin-row">
+                <label>add payee to allowlist</label>
+                <div class="pg-admin-controls">
+                  <input id="pgAllowInput" type="text" placeholder="e.g. new_vendor_acct" />
+                  <button id="pgAllowApply" class="btn-secondary">Apply</button>
+                </div>
+              </div>
+              <div class="pg-admin-confirm" id="pgAdminConfirm"></div>
+              <div class="pg-note" id="pgAdminNote"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span>
+        </div>
+      </main>
+    </section>
   </div>
-</main>
-</div><!-- /#app -->
+</div><!-- /#appShell -->
 
 <!-- Runtime env injection point for docker-compose (see Dockerfile + public/env-config.js).
      Loaded before the app bundle so window.__PROXY_URL__ is available at startup. -->
 <script src="/env-config.js"></script>
+<script>
+  // Pre-paint guard: on a cold deep-link straight to a sub-route, set the initial
+  // page visibility here (synchronously, before the deferred app module runs) so
+  // the landing page doesn't flash before the router swaps it in.
+  (function () {
+    var h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
+    if (h !== "console" && h !== "playground") return;
+    var set = function (id, on) { var e = document.getElementById(id); if (e) e.style.display = on ? "" : "none"; };
+    set("landing", false);
+    var shell = document.getElementById("appShell"); if (shell) shell.style.display = "flex";
+    set("view-console", h === "console");
+    set("view-playground", h === "playground");
+  })();
+</script>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
