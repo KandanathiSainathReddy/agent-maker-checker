@@ -73,15 +73,30 @@ function pgRzpCard(data, tool, mode) {
   const shortUrl = typeof data.short_url === "string" ? data.short_url : null;
   const rid = data.id ? String(data.id) : null;
   if (!shortUrl && !(rid && /^(plink_|rfnd_|pl_|pay_)/.test(rid))) return "";
+  const live = mode === "live";
   const amt = data.amount != null ? " · " + inr(data.amount) : "";
   const meta = [];
   if (rid) meta.push(escapeHtml(rid));
   if (data.status) meta.push(escapeHtml(data.status));
-  const tag = mode === "live" ? "Razorpay MCP · live" : mode === "cached" ? "Razorpay MCP · cached" : "Razorpay MCP";
+  const tag = live ? "Razorpay MCP · live" : mode === "cached" ? "Razorpay MCP · cached" : "Razorpay MCP";
+  // A clickable link is shown ONLY in live mode — there the MCP really called
+  // Razorpay and this is a fresh, real link. In cached mode the upstream is a
+  // replayed recording (the MCP is NOT invoked), so we don't dangle a live-
+  // looking link; we say plainly that it's a replayed response.
+  let body;
+  if (shortUrl) {
+    body = live
+      ? `<a class="rzp-link" href="${escapeHtml(shortUrl)}" target="_blank" rel="noopener">${escapeHtml(shortUrl)} ↗</a>`
+      : `<div class="rzp-note">replayed cached response — the live MCP mints a real Razorpay link (runs locally with DEMO_MODE=live)</div>`;
+  } else {
+    // no link (e.g. a refund) — the meta line carries the id/status; only flag
+    // cached mode as replayed.
+    body = live ? "" : `<div class="rzp-note">replayed cached response (no live Razorpay call)</div>`;
+  }
   return (
-    `<div class="rzp-card">` +
-      `<div class="rzp-head"><span class="rzp-tag">${escapeHtml(tag)}</span> ${escapeHtml(tool || "executed")}${amt}</div>` +
-      (shortUrl ? `<a class="rzp-link" href="${escapeHtml(shortUrl)}" target="_blank" rel="noopener">${escapeHtml(shortUrl)} ↗</a>` : "") +
+    `<div class="rzp-card${live ? "" : " rzp-card-cached"}">` +
+      `<div class="rzp-head"><span class="rzp-tag${live ? "" : " rzp-tag-cached"}">${escapeHtml(tag)}</span> ${escapeHtml(tool || "executed")}${amt}</div>` +
+      body +
       (meta.length ? `<div class="rzp-meta">${meta.join(" · ")}</div>` : "") +
     `</div>`
   );
