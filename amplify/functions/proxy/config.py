@@ -16,6 +16,7 @@ from functools import lru_cache
 
 from proxy.approvals import ApprovalQueue, DynamoApprovalQueue, InMemoryApprovalQueue
 from proxy.audit import AuditLog, DynamoAuditLog, JsonlAuditLog
+from proxy.overrides import DynamoPolicyOverrides, InMemoryPolicyOverrides, PolicyOverrides
 from proxy.state import DynamoStateStore, InMemoryStateStore, StateStore
 
 
@@ -41,6 +42,15 @@ def audit_backend() -> str:
 
 def approvals_backend() -> str:
     return _env("APPROVALS_BACKEND", "memory")
+
+
+def policy_overrides_backend() -> str:
+    # Defaults to whatever STATE_BACKEND resolved to: overrides ride along
+    # with the amc-state table on the dynamodb backend, and with the
+    # in-process store locally, without a separate env var to keep in sync
+    # by hand -- override POLICY_OVERRIDES_BACKEND explicitly if that's ever
+    # not what's wanted.
+    return _env("POLICY_OVERRIDES_BACKEND", state_backend())
 
 
 def audit_log_path() -> str:
@@ -96,3 +106,12 @@ def get_approval_queue() -> ApprovalQueue:
             ddb_approvals_table(), endpoint_url=ddb_endpoint_url(), region_name=aws_region()
         )
     return InMemoryApprovalQueue()
+
+
+@lru_cache(maxsize=1)
+def get_policy_overrides() -> PolicyOverrides:
+    if policy_overrides_backend() == "dynamodb":
+        return DynamoPolicyOverrides(
+            ddb_state_table(), endpoint_url=ddb_endpoint_url(), region_name=aws_region()
+        )
+    return InMemoryPolicyOverrides()

@@ -21,13 +21,16 @@ visible in the hash chain.
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 from proxy import config
 from proxy.approvals import ApprovalQueue, ApprovalRecord
@@ -42,6 +45,8 @@ from proxy.models import (
     ToolCallRequest,
     ToolCallResponse,
 )
+from proxy.overrides import PolicyOverrides
+from proxy.policies_impl import payee_allowlist
 from proxy.state import StateStore
 from proxy.upstream.base import UpstreamExecutor
 
@@ -55,6 +60,25 @@ except ImportError:
 
 
 _FEED_SIZE = 5000
+_ADMIN_AGENT_ID = "admin"
+
+
+class PolicyOverrideRequest(BaseModel):
+    """Body for ``POST /admin/policy/{policy_id}`` -- same param shape as a
+    YAML policy's ``params:`` block (e.g. ``{"default_cap_inr": 100000}``),
+    deep-merged onto that policy's loaded defaults by the engine.
+    """
+
+    params: dict[str, Any]
+
+
+class AllowlistRequest(BaseModel):
+    """Body for ``POST /admin/allowlist``: add/remove one payee from
+    ``payee_allowlist``'s effective ``known_payees`` list.
+    """
+
+    payee: str
+    action: Literal["add", "remove"] = "add"
 
 
 def _approval_out(record: ApprovalRecord) -> ApprovalOut:
@@ -82,17 +106,35 @@ def create_app(
     approvals: ApprovalQueue | None = None,
     metrics: MetricsAccumulator | None = None,
     policy_dir: str | None = None,
+    policy_overrides: PolicyOverrides | None = None,
     now_fn: Callable[[], float] = time.time,
 ) -> FastAPI:
     state_store = state_store if state_store is not None else config.get_state_store()
     audit_log = audit_log if audit_log is not None else config.get_audit_log()
-    engine = engine if engine is not None else PolicyEngine(policy_dir or config.policy_dir())
+    policy_overrides = (
+        policy_overrides if policy_overrides is not None else config.get_policy_overrides()
+    )
+    engine = (
+        engine
+        if engine is not None
+        else PolicyEngine(policy_dir or config.policy_dir(), overrides=policy_overrides)
+    )
     upstream = upstream if upstream is not None else get_upstream()
     approvals = approvals if approvals is not None else config.get_approval_queue()
     metrics = metrics if metrics is not None else MetricsAccumulator()
     decisions_feed: deque[DecisionRecord] = deque(maxlen=_FEED_SIZE)
 
     app = FastAPI(title="agent-maker-checker enforcement proxy")
+    # Local-only CORS. Under `docker compose`/uvicorn the dashboard calls this
+    # app cross-origin from the browser, so it needs the CORS headers. In cloud
+    # the API Gateway HttpApi already adds them — leave this OFF there
+    # (PROXY_ENABLE_CORS unset) to avoid duplicate Access-Control-Allow-Origin.
+    if os.environ.get("PROXY_ENABLE_CORS", "").lower() in ("1", "true", "yes"):
+        from fastapi.middleware.cors import CORSMiddleware
+
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+        )
 
     def _record_feed(
         *, request_id: str, now: float, req: ToolCallRequest, amount_paise: int,
@@ -242,6 +284,65 @@ def create_app(
             reason=f"manual admin unfreeze of {agent_id}/{tool}", now=now,
         )
         return {"agent_id": agent_id, "tool": tool, "frozen": state_store.is_frozen(agent_id, tool)}
+
+    def _policy_admin_out(lp) -> dict:  # lp: engine.LoadedPolicy
+        return {
+            "policy_id": lp.policy_id,
+            "enabled": lp.enabled,
+            "applies_to": lp.applies_to,
+            "defaults": lp.raw_params,
+            "overrides": policy_overrides.get(lp.policy_id),
+            "effective": engine.effective_params(lp.policy_id),
+        }
+
+    @app.get("/admin/policy")
+    async def admin_list_policy() -> dict:
+        return {"policies": [_policy_admin_out(lp) for lp in engine.loaded_policies]}
+
+    @app.post("/admin/policy/{policy_id}")
+    async def admin_set_policy(policy_id: str, payload: PolicyOverrideRequest) -> dict:
+        lp = engine.get_policy(policy_id)
+        if lp is None:
+            raise HTTPException(status_code=404, detail=f"unknown policy_id {policy_id!r}")
+
+        now = now_fn()
+        policy_overrides.set(policy_id, payload.params)
+        audit_log.append(
+            request_id=f"admin_{uuid.uuid4().hex[:12]}", agent_id=_ADMIN_AGENT_ID, tool=policy_id,
+            arguments=payload.params, decision="policy_override", policy_id=policy_id,
+            reason=f"admin set runtime override for policy {policy_id!r}: {payload.params!r}",
+            now=now,
+        )
+        return _policy_admin_out(engine.get_policy(policy_id))
+
+    @app.post("/admin/allowlist")
+    async def admin_allowlist(payload: AllowlistRequest) -> dict:
+        policy_id = payee_allowlist.POLICY_ID
+        lp = engine.get_policy(policy_id)
+        if lp is None:
+            raise HTTPException(status_code=404, detail=f"policy {policy_id!r} not loaded")
+
+        effective = engine.effective_params(policy_id) or {}
+        known: list[str] = list(effective.get("known_payees", []))
+        payee = payload.payee.strip()
+
+        if payload.action == "add":
+            if not any(p.lower() == payee.lower() for p in known):
+                known.append(payee)
+        else:
+            known = [p for p in known if p.lower() != payee.lower()]
+
+        now = now_fn()
+        new_override = {**policy_overrides.get(policy_id), "known_payees": known}
+        policy_overrides.set(policy_id, new_override)
+        audit_log.append(
+            request_id=f"admin_{uuid.uuid4().hex[:12]}", agent_id=_ADMIN_AGENT_ID, tool=policy_id,
+            arguments={"payee": payload.payee, "action": payload.action},
+            decision="policy_override", policy_id=policy_id,
+            reason=f"admin {payload.action}ed payee {payload.payee!r} on {policy_id} allowlist",
+            now=now,
+        )
+        return {"policy_id": policy_id, "known_payees": known}
 
     @app.get("/healthz")
     async def healthz() -> dict:

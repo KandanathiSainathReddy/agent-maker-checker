@@ -13,6 +13,7 @@ services:
       - STATE_BACKEND=${STATE_BACKEND:-memory}
       - AUDIT_BACKEND=${AUDIT_BACKEND:-jsonl}
       - POLICY_DIR=/app/proxy/policies
+      - PROXY_ENABLE_CORS=1   # browser (dashboard) calls this cross-origin locally
     volumes:
       - ../amplify/functions/proxy/policies:/app/proxy/policies:ro  # hot-reload without rebuild
       - ../data:/app/data
@@ -50,10 +51,37 @@ services:
     ports:
       - "8001:8000"
 
-  # React dashboard (Vite) — decision feed, HITL queue, live counters.
+  # Nova playground agent — wraps the Bedrock (Amazon Nova) tool-loop agent as an
+  # HTTP service; its tool calls go through the proxy. Bedrock needs AWS creds:
+  # export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (+ AWS_SESSION_TOKEN if using
+  # temporary creds) or add them to .env before `docker compose up`.
+  agent:
+    build: ../amplify/functions/agent
+    ports:
+      - "8100:8100"
+    env_file: ../.env
+    environment:
+      - PROXY_URL=http://proxy:8000
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-us.amazon.nova-lite-v1:0}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+    depends_on:
+      - proxy
+
+  # React dashboard (Vite) — decision feed, HITL queue, live counters, Nova playground.
   dashboard:
     build: ../apps/dashboard
     ports:
       - "3000:3000"
     environment:
-      - PROXY_URL=http://proxy:8000
+      # Browser-reachable host ports — the dashboard runs in YOUR BROWSER, not in
+      # the compose network, so it must use localhost:<published port>, not the
+      # service name. The dashboard image's entrypoint injects these as
+      # window.__PROXY_URL__ / window.__AGENT_URL__.
+      - PROXY_URL=http://localhost:8000
+      - AGENT_URL=http://localhost:8100
+    depends_on:
+      - proxy
+      - agent

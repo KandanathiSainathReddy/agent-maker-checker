@@ -24,6 +24,17 @@ Hot reload: every ``evaluate()`` call does a cheap ``os.stat`` on each known
 policy file (and a directory listing, to catch new/removed files) and only
 re-parses YAML if something changed — negligible overhead per request, no
 polling thread, no restart needed to pick up a changed cap.
+
+Runtime overrides: ``PolicyEngine`` optionally takes a ``proxy.overrides.
+PolicyOverrides`` store. At evaluate time (and for admin/debug lookups) each
+policy's YAML-loaded ``params`` gets deep-merged with that policy's stored
+override, if any — see ``_merged_params``/``_deep_merge`` below. The override
+dict is run through the exact same ``_convert_params`` used for YAML params,
+so e.g. an admin override of ``default_cap_inr`` produces ``default_cap_paise``
+too, matching what the ``policies_impl/*.py`` modules actually read. With no
+``overrides`` store passed in (``overrides=None``, the default) or no stored
+override for a given policy, behavior is byte-identical to before overrides
+existed.
 """
 
 from __future__ import annotations
@@ -38,6 +49,7 @@ from typing import Any
 import yaml
 
 from proxy.models import ToolCallRequest
+from proxy.overrides import PolicyOverrides
 from proxy.policies_impl import (
     payee_allowlist,
     per_call_amount_cap,
@@ -84,6 +96,33 @@ def _applies(applies_to: list[str], tool: str) -> bool:
     return "*" in applies_to or tool in applies_to
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge ``override`` onto ``base``: nested dicts merge key by
+    key (so overriding one entry of a per-tool map, e.g. ``overrides_inr``,
+    leaves sibling entries untouched); any other value in ``override``
+    (scalar, list) replaces the base value outright.
+    """
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _merged_params(
+    base_params: dict[str, Any], override_raw: dict[str, Any] | None
+) -> dict[str, Any]:
+    """``base_params`` (already paise-converted) deep-merged with
+    ``override_raw`` (run through the same ``_convert_params`` pipeline
+    first). No override -> ``base_params`` returned unchanged.
+    """
+    if not override_raw:
+        return base_params
+    return _deep_merge(base_params, _convert_params(override_raw))
+
+
 @dataclass
 class LoadedPolicy:
     policy_id: str
@@ -92,14 +131,19 @@ class LoadedPolicy:
     applies_to: list[str]
     description: str
     params: dict[str, Any]
+    # Pre-conversion params exactly as authored in YAML (INR-facing, no
+    # `*_paise` siblings) -- kept for admin/debug endpoints that want to show
+    # a human the configured default without the derived paise keys.
+    raw_params: dict[str, Any]
 
 
 class PolicyEngine:
-    def __init__(self, policy_dir: str | Path) -> None:
+    def __init__(self, policy_dir: str | Path, *, overrides: PolicyOverrides | None = None) -> None:
         self._dir = Path(policy_dir)
         self._lock = threading.Lock()
         self._policies: list[LoadedPolicy] = []
         self._mtimes: dict[str, float] = {}
+        self._overrides = overrides
         self._load_if_changed()
 
     def _policy_files(self) -> list[Path]:
@@ -118,6 +162,7 @@ class PolicyEngine:
             policy_id = raw["policy_id"]
             if policy_id not in REGISTRY:
                 raise ValueError(f"{f}: unknown policy_id {policy_id!r} (no evaluate() registered)")
+            raw_params = raw.get("params", {}) or {}
             loaded.append(
                 LoadedPolicy(
                     policy_id=policy_id,
@@ -125,7 +170,8 @@ class PolicyEngine:
                     enabled=bool(raw.get("enabled", True)),
                     applies_to=list(raw.get("applies_to", ["*"])),
                     description=str(raw.get("description", "")).strip(),
-                    params=_convert_params(raw.get("params", {}) or {}),
+                    params=_convert_params(raw_params),
+                    raw_params=raw_params,
                 )
             )
         loaded.sort(key=lambda p: p.priority)
@@ -139,10 +185,35 @@ class PolicyEngine:
         with self._lock:
             return list(self._policies)
 
+    def get_policy(self, policy_id: str) -> LoadedPolicy | None:
+        """Read-only lookup by id, for admin endpoints. None if not loaded."""
+        with self._lock:
+            for lp in self._policies:
+                if lp.policy_id == policy_id:
+                    return lp
+        return None
+
+    def effective_params(self, policy_id: str) -> dict[str, Any] | None:
+        """``policy_id``'s YAML params with its stored runtime override (if
+        any) merged on top -- the exact same merge ``evaluate()`` applies
+        per-request. ``None`` if ``policy_id`` isn't a loaded policy.
+        """
+        lp = self.get_policy(policy_id)
+        if lp is None:
+            return None
+        override_raw = self._overrides.get(policy_id) if self._overrides is not None else {}
+        return _merged_params(lp.params, override_raw)
+
     def evaluate(self, request: ToolCallRequest, state: StateStore, now: float) -> Decision:
         self._load_if_changed()
         with self._lock:
             policies = list(self._policies)
+        # One overrides.all() read per evaluate() call, not per policy: cheap
+        # for the demo (a handful of policies, admin-only write volume) and
+        # avoids a cache-invalidation story. Swap for a short-TTL (~1s) cache
+        # in front of `all()` if this ever needs to survive real request
+        # volume against DynamoPolicyOverrides.
+        overrides_all = self._overrides.all() if self._overrides is not None else {}
 
         t0 = time.perf_counter()
         trace: list[PolicyEvaluation] = []
@@ -150,7 +221,8 @@ class PolicyEngine:
             if not lp.enabled or not _applies(lp.applies_to, request.tool):
                 continue
             fn = REGISTRY[lp.policy_id]
-            ctx = PolicyContext(request=request, state=state, params=lp.params, now=now)
+            params = _merged_params(lp.params, overrides_all.get(lp.policy_id))
+            ctx = PolicyContext(request=request, state=state, params=params, now=now)
             evaluation = fn(ctx)
             trace.append(evaluation)
             if evaluation.decision != "allow":
