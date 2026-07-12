@@ -18,6 +18,11 @@ FROM python:3.12-slim
 # Lambda Web Adapter (bring-your-own-web-server → Lambda, no handler rewrite).
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 
+# Razorpay's open-source MCP server binary, baked in so DEMO_MODE=live can spawn
+# it per-call via RAZORPAY_MCP_BIN inside the Lambda (a Lambda can't run Docker).
+# Its own image ships the static binary at /app/razorpay-mcp-server.
+COPY --from=razorpay/mcp:8607a4d95e67c86db8201d728658eb5f00d790fe /app/razorpay-mcp-server /usr/local/bin/razorpay-mcp-server
+
 ENV PORT=8000 \
     AWS_LWA_PORT=8000 \
     PYTHONUNBUFFERED=1 \

@@ -83,13 +83,26 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
           }
         : {};
 
+    // DEMO_MODE=live on the deployed Lambda: the razorpay-mcp-server binary is
+    // baked into the proxy image (proxy/Dockerfile), so we point the proxy at it
+    // via RAZORPAY_MCP_BIN — no Docker-in-Lambda. Test-mode keys ride in as plain
+    // Amplify build-env vars (rzp_test_ only; this is a test-mode demo endpoint).
+    // Only wired when live, so a cached deploy still needs no keys.
+    const liveEnv: Record<string, string> = {};
+    if ((process.env.DEMO_MODE ?? 'cached') === 'live') {
+      liveEnv.RAZORPAY_MCP_BIN = '/usr/local/bin/razorpay-mcp-server';
+      if (process.env.RAZORPAY_KEY_ID) liveEnv.RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+      if (process.env.RAZORPAY_KEY_SECRET) liveEnv.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+    }
+
     const proxyFn = new lambda.DockerImageFunction(stack, 'AmcProxyFunction', {
       functionName: 'amc-proxy',
       code: imageCode,
       memorySize: 1024,
-      timeout: Duration.seconds(30),
+      timeout: Duration.seconds(60),
       environment: {
         ...liveSecrets,
+        ...liveEnv,
         // CONTRACTS.md §2 — cloud Lambda always runs the dynamodb-backed
         // stores (ephemeral, concurrent invocations -> must be shared +
         // atomic). Local docker-compose uses memory/jsonl instead.

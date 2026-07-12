@@ -86,7 +86,16 @@ def _build_command() -> tuple[str, list[str]]:
     """
     bin_override = os.environ.get("RAZORPAY_MCP_BIN")
     if bin_override:
-        return bin_override, shlex.split(os.environ.get("RAZORPAY_MCP_ARGS", "stdio"))
+        args = shlex.split(os.environ.get("RAZORPAY_MCP_ARGS", "stdio"))
+        # razorpay-mcp-server takes credentials as --key/--secret flags (its
+        # Docker entrypoint builds exactly those flags from the env). The docker
+        # path below passes the keys via `-e`; for a bare binary we append the
+        # flags from the env so both transports authenticate identically.
+        key = os.environ.get("RAZORPAY_KEY_ID")
+        secret = os.environ.get("RAZORPAY_KEY_SECRET")
+        if key and secret and "--key" not in args:
+            args += ["--key", key, "--secret", secret]
+        return bin_override, args
     image = os.environ.get("RAZORPAY_MCP_IMAGE", DEFAULT_IMAGE)
     return (
         "docker",
