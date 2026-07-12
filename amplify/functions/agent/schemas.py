@@ -60,7 +60,9 @@ TOOLS: dict[str, dict[str, Any]] = {
     "create_payment_link": {
         "description": (
             "Create a Razorpay payment link a customer can pay against (e.g. to collect "
-            "an outstanding balance). Routed through the compliance proxy."
+            "an outstanding balance). Only amount and description are needed — the customer "
+            "fields are optional and should be OMITTED unless the operator explicitly provides "
+            "them. Routed through the compliance proxy."
         ),
         "schema": {
             "type": "object",
@@ -74,11 +76,21 @@ TOOLS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "Short human-readable description shown to the customer.",
                 },
-                "customer_name": {"type": "string", "description": "Customer's display name."},
-                "customer_email": {"type": "string", "description": "Customer's email address."},
+                "customer_name": {
+                    "type": "string",
+                    "description": "Optional customer display name. Omit unless the operator gives one.",
+                },
+                "customer_email": {
+                    "type": "string",
+                    "description": "Optional customer email address. Omit unless the operator gives a real email.",
+                },
                 "customer_contact": {
                     "type": "string",
-                    "description": "Customer's phone number or UPI/VPA handle.",
+                    "description": (
+                        "Optional customer PHONE NUMBER — digits only, 8 to 14 characters "
+                        "(e.g. 9876543210). Omit it unless the operator gives a real phone "
+                        "number; never put an email, UPI/VPA handle, or payee id here."
+                    ),
                 },
                 "reference_id": {
                     "type": "string",

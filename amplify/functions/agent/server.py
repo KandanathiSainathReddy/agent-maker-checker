@@ -43,6 +43,10 @@ DEFAULT_AGENT_ID = "playground-agent"
 # the reviewer to invent scenarios themselves.
 SAMPLES: list[dict[str, str]] = [
     {
+        "label": "Create ₹500 payment link",
+        "message": "Create a payment link for Rs 500 to collect an outstanding balance.",
+    },
+    {
         "label": "Normal refund (allow)",
         "message": (
             "Refund payment pay_9f8s7d3XY for Rs 1,200 to cust_ravi@oksbi — "
