@@ -17,12 +17,27 @@ services:
       - razorpay-mcp
 
   # Razorpay's open-source MCP server (Go), self-hosted, test-mode keys.
-  # Transport/image finalized in Phase 2 — see infra/razorpay-mcp.md
+  # Transport is stdio ONLY — razorpay-mcp-server has exactly one subcommand
+  # (`stdio`; no sse/http), confirmed against its cmd/ source and its own
+  # Dockerfile ENTRYPOINT — so there is no port to publish. A stdio MCP
+  # server is a subprocess protocol, not a network daemon: the actual live
+  # connection is proxy/upstream/mcp_client.py spawning its own short-lived
+  # `docker run --rm -i ... <image>` (or a local binary — see
+  # RAZORPAY_MCP_BIN/RAZORPAY_MCP_ARGS) per call, NOT this container. Under
+  # `docker compose up` this service starts, gets stdin EOF immediately, and
+  # exits 0 — harmless. It's kept here so the image is declared/pinned and
+  # `docker compose run --rm razorpay-mcp` works for manual stdio testing.
+  # Docker Hub publishes only commit-hash tags for razorpay/mcp (no `latest`,
+  # no semver) — override RAZORPAY_MCP_IMAGE if the pinned tag is pruned.
+  # Full research trail + our-tool -> server-tool mapping: infra/razorpay-mcp.md
   razorpay-mcp:
-    image: razorpay/mcp
+    image: ${RAZORPAY_MCP_IMAGE:-razorpay/mcp:8607a4d95e67c86db8201d728658eb5f00d790fe}
     environment:
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+    stdin_open: true
+    tty: false
+    restart: "no"
 
   # DynamoDB Local — mirrors the cloud state/audit backend so the concurrency test
   # exercises real atomic semantics (not a mock). Host port 8001 → container 8000.

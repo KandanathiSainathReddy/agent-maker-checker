@@ -1,0 +1,16 @@
+policy_id: velocity_aggregation
+priority: 30
+enabled: true
+applies_to: [issue_refund, create_payment_link, pay_vendor]
+description: >
+  Rolling-window cross-call sum per (agent, tool, payee) — the structuring
+  catch. A single call under the per-call cap is invisible in isolation;
+  five of them inside a day is the same large transfer split into pieces
+  specifically to dodge the seatbelt. Crossing the threshold freezes the
+  (agent, tool) pair — every subsequent call for that pair auto-denies until
+  a human clears it via an unfreeze approval. The window is a 24h tumbling
+  window (resets window_s seconds after the first call in it), matching a
+  daily settlement/review cadence.
+params:
+  window_s: 86400
+  threshold_inr: 150000

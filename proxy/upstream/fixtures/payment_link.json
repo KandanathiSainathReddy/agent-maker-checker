@@ -1,0 +1,32 @@
+{
+  "id": "plink_TEMPLATE0000",
+  "entity": "payment_link",
+  "accept_partial": false,
+  "amount": 10000,
+  "amount_paid": 0,
+  "currency": "INR",
+  "description": "Payment via agent-maker-checker demo",
+  "customer": {
+    "name": "",
+    "email": "",
+    "contact": ""
+  },
+  "notify": {
+    "sms": true,
+    "email": true
+  },
+  "reminder_enable": true,
+  "notes": {},
+  "created_at": 1751500000,
+  "expire_by": 1751586400,
+  "expired_at": null,
+  "cancelled_at": null,
+  "reference_id": "",
+  "first_min_partial_amount": 0,
+  "short_url": "https://rzp.io/i/TEMPLATE",
+  "status": "created",
+  "user_id": "",
+  "payments": null,
+  "callback_url": "",
+  "callback_method": ""
+}

@@ -1,0 +1,20 @@
+policy_id: per_call_amount_cap
+priority: 20
+enabled: true
+applies_to: [issue_refund, create_payment_link, pay_vendor]
+description: >
+  Hard per-call rupee ceiling, independent of any history. No single tool
+  call may move more than the configured amount in one shot. This is the
+  seatbelt, not the sensor: it stops a single catastrophic call (fat-finger,
+  unit-conversion bug, a prompt-injected six-figure refund) before any
+  cross-call reasoning even runs. Amounts are in INR here for readability;
+  the loader converts every `*_inr` key to a sibling `*_paise` key at
+  startup — policy code only ever sees integer paise.
+params:
+  # Applies to any tool not named in overrides_inr below.
+  default_cap_inr: 150000
+  # Per-tool overrides. create_payment_link is customer-initiated collection,
+  # not agent-initiated spend, so it gets a higher ceiling than an agent
+  # directly moving money out (issue_refund, pay_vendor use the default).
+  overrides_inr:
+    create_payment_link: 200000

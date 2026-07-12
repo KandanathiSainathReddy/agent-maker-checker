@@ -1,0 +1,172 @@
+"""Loads policies/*.yaml, hot-reloads on change, evaluates them in priority order.
+
+Money convention: YAML policy files express amounts in INR for human
+readability (a payments engineer should be able to read ``cap_inr: 150000``
+and know exactly what it means). Any params key ending in ``_inr`` is
+converted at load time to a sibling key with the same name but ``_paise``
+instead, holding the integer-paise value — ``cap_inr: 1500`` produces
+``cap_paise: 150000`` alongside it. Nested dicts (per-tool override maps) are
+converted recursively. Every ``proxy/policies_impl/*.py`` module reads only
+the ``_paise`` keys; money is integer paise from that point on, matching the
+rest of the codebase.
+
+Evaluation order: policies run in ascending ``priority`` order (lower number
+= runs first). The FIRST policy to return anything other than "allow" wins —
+evaluation stops there, so a policy later in priority order does not run (and
+therefore cannot mutate state, e.g. record a velocity attempt) once an
+earlier policy has already denied or escalated the call. This keeps
+"attempted" state limited to calls that actually got past every
+higher-priority gate, and keeps per-policy trip counts (``GET /metrics``)
+meaning "this policy actually fired", not "this policy would have fired
+hypothetically". The trace still records every policy that *was* reached.
+
+Hot reload: every ``evaluate()`` call does a cheap ``os.stat`` on each known
+policy file (and a directory listing, to catch new/removed files) and only
+re-parses YAML if something changed — negligible overhead per request, no
+polling thread, no restart needed to pick up a changed cap.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from proxy.models import ToolCallRequest
+from proxy.policies_impl import (
+    payee_allowlist,
+    per_call_amount_cap,
+    provenance_check,
+    refund_to_capture_ratio,
+    velocity_aggregation,
+)
+from proxy.policy_types import Decision, PolicyContext, PolicyEvaluation
+from proxy.state import StateStore
+
+PolicyFn = Callable[[PolicyContext], PolicyEvaluation]
+
+REGISTRY: dict[str, PolicyFn] = {
+    provenance_check.POLICY_ID: provenance_check.evaluate,
+    per_call_amount_cap.POLICY_ID: per_call_amount_cap.evaluate,
+    velocity_aggregation.POLICY_ID: velocity_aggregation.evaluate,
+    payee_allowlist.POLICY_ID: payee_allowlist.evaluate,
+    refund_to_capture_ratio.POLICY_ID: refund_to_capture_ratio.evaluate,
+}
+
+
+def _inr_to_paise(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _inr_to_paise(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_inr_to_paise(v) for v in value]
+    return int(round(float(value) * 100))
+
+
+def _convert_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Pass every param through unchanged; for each ``*_inr`` key, additionally add
+    a ``*_paise`` sibling holding the paise-converted value (scalar, list, or dict
+    all handled by ``_inr_to_paise``). Non-``_inr`` keys (window_s, ratio percentages,
+    payee lists, flags) are money-unit-agnostic and pass through as-is.
+    """
+    out: dict[str, Any] = dict(params)
+    for key, value in params.items():
+        if key.endswith("_inr"):
+            out[key[: -len("_inr")] + "_paise"] = _inr_to_paise(value)
+    return out
+
+
+def _applies(applies_to: list[str], tool: str) -> bool:
+    return "*" in applies_to or tool in applies_to
+
+
+@dataclass
+class LoadedPolicy:
+    policy_id: str
+    priority: int
+    enabled: bool
+    applies_to: list[str]
+    description: str
+    params: dict[str, Any]
+
+
+class PolicyEngine:
+    def __init__(self, policy_dir: str | Path) -> None:
+        self._dir = Path(policy_dir)
+        self._lock = threading.Lock()
+        self._policies: list[LoadedPolicy] = []
+        self._mtimes: dict[str, float] = {}
+        self._load_if_changed()
+
+    def _policy_files(self) -> list[Path]:
+        if not self._dir.exists():
+            return []
+        return sorted(self._dir.glob("*.yaml")) + sorted(self._dir.glob("*.yml"))
+
+    def _load_if_changed(self) -> None:
+        files = self._policy_files()
+        current = {str(f): f.stat().st_mtime for f in files}
+        if current == self._mtimes:
+            return
+        loaded: list[LoadedPolicy] = []
+        for f in files:
+            raw = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            policy_id = raw["policy_id"]
+            if policy_id not in REGISTRY:
+                raise ValueError(f"{f}: unknown policy_id {policy_id!r} (no evaluate() registered)")
+            loaded.append(
+                LoadedPolicy(
+                    policy_id=policy_id,
+                    priority=int(raw.get("priority", 100)),
+                    enabled=bool(raw.get("enabled", True)),
+                    applies_to=list(raw.get("applies_to", ["*"])),
+                    description=str(raw.get("description", "")).strip(),
+                    params=_convert_params(raw.get("params", {}) or {}),
+                )
+            )
+        loaded.sort(key=lambda p: p.priority)
+        with self._lock:
+            self._policies = loaded
+            self._mtimes = current
+
+    @property
+    def loaded_policies(self) -> list[LoadedPolicy]:
+        """Read-only snapshot, for admin/debug endpoints."""
+        with self._lock:
+            return list(self._policies)
+
+    def evaluate(self, request: ToolCallRequest, state: StateStore, now: float) -> Decision:
+        self._load_if_changed()
+        with self._lock:
+            policies = list(self._policies)
+
+        t0 = time.perf_counter()
+        trace: list[PolicyEvaluation] = []
+        for lp in policies:
+            if not lp.enabled or not _applies(lp.applies_to, request.tool):
+                continue
+            fn = REGISTRY[lp.policy_id]
+            ctx = PolicyContext(request=request, state=state, params=lp.params, now=now)
+            evaluation = fn(ctx)
+            trace.append(evaluation)
+            if evaluation.decision != "allow":
+                return Decision(
+                    decision=evaluation.decision,
+                    policy_id=evaluation.policy_id,
+                    reason=evaluation.reason,
+                    evaluated_in_ms=(time.perf_counter() - t0) * 1000,
+                    trace=tuple(trace),
+                    escalate_unfreeze=evaluation.escalate_unfreeze,
+                )
+
+        return Decision(
+            decision="allow",
+            policy_id=None,
+            reason="all applicable policies passed",
+            evaluated_in_ms=(time.perf_counter() - t0) * 1000,
+            trace=tuple(trace),
+        )

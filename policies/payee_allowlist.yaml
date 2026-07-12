@@ -1,0 +1,18 @@
+policy_id: payee_allowlist
+priority: 40
+enabled: true
+applies_to: [issue_refund, pay_vendor]
+description: >
+  Known payees (previously reviewed and approved) pass silently. A payee the
+  agent has never paid before escalates to a human rather than denying
+  outright — new-payee-first-payment is completely normal business, but it
+  is also exactly the moment a compromised or confused agent could redirect
+  funds, so a human should see it once before it becomes routine.
+params:
+  # Demo allowlist — payment handles/VPAs this merchant has already reviewed
+  # and approved paying. In production this would be backed by the
+  # merchant's actual vendor/customer master, not a YAML list.
+  known_payees:
+    - cust_ravi@oksbi
+    - vendor_acme@hdfcbank
+    - vendor_globex@icici

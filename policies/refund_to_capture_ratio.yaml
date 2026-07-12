@@ -1,0 +1,18 @@
+policy_id: refund_to_capture_ratio
+priority: 50
+enabled: true
+# create_payment_link stands in for capture-side inflow (there is no
+# dedicated "capture" tool in the frozen tool vocabulary); issue_refund is
+# the outflow measured against it.
+applies_to: [issue_refund, create_payment_link]
+description: >
+  Refunds are supposed to track captures. Refunds far in excess of what was
+  actually captured in the same window is a processing-error or
+  laundering-shaped pattern, not a normal payments pattern — escalate for a
+  human to check the underlying orders rather than silently block (bad
+  batches and recalls do legitimately spike refunds).
+params:
+  window_s: 86400
+  # Refunds may be at most this percentage of captured volume in the window
+  # before escalating. Not an `*_inr` key: it's a ratio, not a rupee amount.
+  max_ratio_pct: 50
