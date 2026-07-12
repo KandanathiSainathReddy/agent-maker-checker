@@ -3,9 +3,59 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>agent-maker-checker · spend-control plane</title>
+<title>agent-maker-checker · maker-checker for AI agents</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="description" content="Maker-checker for AI agents — a merchant-side spend-control plane that intercepts and evaluates every agent tool call against payments-semantic policies before it reaches Razorpay." />
 </head>
 <body>
+<section id="landing">
+  <div class="landing-inner">
+    <div class="landing-nav">
+      <div class="brand">agent<span class="amp">-</span>maker<span class="amp">-</span>checker</div>
+      <span class="landing-pill"><span class="dot live"></span> live · razorpay test rails</span>
+    </div>
+
+    <div class="landing-grid">
+      <div class="landing-hero">
+        <div class="eyebrow">maker-checker for AI agents · merchant-side spend control</div>
+        <h1 class="landing-h1">A second pair of eyes for every agent payment.</h1>
+        <p class="landing-lede">You don't let an employee move ₹2&nbsp;lakh without a second pair of eyes — an AI agent shouldn't get more trust than an employee.</p>
+        <p class="landing-body">An enforcement proxy sits between any AI agent and Razorpay. Every tool call is intercepted and evaluated against declarative, payments-semantic policies <b>before</b> it executes → <span class="c-allow">allow</span> · <span class="c-deny">deny</span> · <span class="c-esc">escalate-to-human</span> — with a hash-chained audit log and a human approval queue. Real test rails. Zero false blocks by design.</p>
+        <div class="landing-cta">
+          <button id="enterBtn" class="btn-primary">Try the agents →</button>
+          <a class="btn-secondary" href="https://github.com/KandanathiSainathReddy/agent-maker-checker" target="_blank" rel="noopener">View on GitHub ↗</a>
+        </div>
+      </div>
+
+      <div class="landing-panel">
+        <div class="lp-head"><span class="dot live"></span> LIVE · SUB-MS POLICY EVAL · SHA256 AUDIT ✓</div>
+        <div class="lp-flow">
+          <div class="lp-box"><b>AI agent</b><span>Nova · Bedrock</span></div>
+          <div class="lp-arrow">→</div>
+          <div class="lp-box lp-box-hot"><b>amc-proxy</b><span>policy · audit · HITL</span></div>
+          <div class="lp-arrow">→</div>
+          <div class="lp-box"><b>Razorpay MCP</b><span>test mode</span></div>
+        </div>
+        <div class="lp-policies">
+          <span>per-call cap</span><span>velocity / structuring</span><span>payee allowlist</span><span>refund ratio</span><span>provenance</span>
+        </div>
+        <div class="lp-stats">
+          <div><div class="lp-num">5</div><div class="lp-lbl">payments policies</div></div>
+          <div><div class="lp-num">&lt;1<span class="u">ms</span></div><div class="lp-lbl">policy eval</div></div>
+          <div><div class="lp-num c-allow">0</div><div class="lp-lbl">false blocks</div></div>
+          <div><div class="lp-num c-deny">₹0</div><div class="lp-lbl">unauthorized moved</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="landing-foot">
+      Built for the <b>Razorpay AI Builder</b> challenge · 12 Jul 2026 &nbsp;—&nbsp;
+      <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span>
+    </div>
+  </div>
+</section>
+
+<div id="app" class="app-hidden">
 <header>
   <div>
     <div class="brand">agent<span class="amp">-</span>maker<span class="amp">-</span>checker</div>
@@ -41,10 +91,12 @@
   </div>
 
   <div class="foot">
+    <a href="#" id="backBtn" class="back-link">← overview</a> &nbsp;·&nbsp;
     <span class="thesis">Reserve Pay decides what an agent may <b>spend</b>. This decides what an agent may <b>do</b>.</span><br/>
-    counters are simulated until the enforcement proxy is wired (Phase 5) · amounts in INR, evaluated in paise
+    amounts in INR, evaluated in paise · live decisions come from the deployed enforcement proxy
   </div>
 </main>
+</div><!-- /#app -->
 
 <!-- Runtime env injection point for docker-compose (see Dockerfile + public/env-config.js).
      Loaded before the app bundle so window.__PROXY_URL__ is available at startup. -->

@@ -430,4 +430,25 @@ async function initMode() {
 
 renderCounters();
 renderQueue();
-initMode();
+initMode(); // connect to the proxy in the background while the landing screen is up
+
+// ---- landing screen <-> dashboard toggle ----
+const landingEl = document.getElementById("landing");
+const appEl = document.getElementById("app");
+const enterBtn = document.getElementById("enterBtn");
+const backBtn = document.getElementById("backBtn");
+if (enterBtn && landingEl && appEl) {
+  enterBtn.addEventListener("click", () => {
+    landingEl.style.display = "none";
+    appEl.classList.remove("app-hidden");
+    window.scrollTo(0, 0);
+  });
+}
+if (backBtn && landingEl && appEl) {
+  backBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    appEl.classList.add("app-hidden");
+    landingEl.style.display = "";
+    window.scrollTo(0, 0);
+  });
+}
