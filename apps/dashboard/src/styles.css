@@ -353,6 +353,7 @@ button.reset { margin-left: auto; color: var(--muted); }
 .pg-note:empty { padding: 0; }
 
 .pg-admin-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 18px; }
+.pg-admin-lead { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .pg-admin-row label { display: block; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
 .pg-admin-current { font-family: var(--mono); font-size: 13px; color: var(--text); margin-bottom: 8px; }
 .pg-admin-controls { display: flex; gap: 8px; }

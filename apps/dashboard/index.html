@@ -146,16 +146,16 @@
             <span class="pg-info-tokens" id="pgTokens">0 tokens</span>
             <span class="pg-info-status" id="pgStatus">not connected</span>
           </div>
-          <div class="pg-info-how">Type a request. Nova decides which payment tool to call; the enforcement proxy evaluates it before it executes.</div>
+          <div class="pg-info-how">Request an action in plain English — e.g. "create a payment link for ₹500". Nova calls the matching Razorpay tool through the MCP; the enforcement proxy allows, denies, or escalates it before it runs.</div>
         </div>
 
         <div class="pg-grid">
           <div class="panel pg-chat-panel">
             <h2>chat with Nova</h2>
-            <div class="pg-transcript" id="pgTranscript"><div class="empty" id="pgEmpty">Send a message to start — or click a sample prompt below.</div></div>
+            <div class="pg-transcript" id="pgTranscript"><div class="empty" id="pgEmpty">Request an action — e.g. create a payment link — and Nova runs it through Razorpay's MCP, gated by the proxy. Click a sample below to try.</div></div>
             <div class="pg-samples" id="pgSamples"></div>
             <div class="pg-inputrow">
-              <input id="pgInput" type="text" placeholder="e.g. Refund ₹1,200 to cust_ravi@oksbi for order #4471" autocomplete="off" />
+              <input id="pgInput" type="text" placeholder="e.g. Create a payment link for ₹500" autocomplete="off" />
               <button id="pgSend" class="btn-primary pg-send">Send</button>
             </div>
             <div class="pg-note" id="pgAgentNote"></div>
@@ -164,6 +164,7 @@
           <div class="panel pg-admin-panel">
             <h2>checker admin</h2>
             <div class="pg-admin-body">
+              <div class="pg-admin-lead">Create &amp; tune the guardrails the agent runs under — refund caps, payee allowlists, velocity limits. Nova can draft a change in plain English; you review and Apply.</div>
               <div class="pg-nl-block">
                 <div class="pg-nl-head">
                   <span class="pg-nl-title">🤖 Nova policy copilot</span>

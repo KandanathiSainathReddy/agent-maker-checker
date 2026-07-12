@@ -91,6 +91,9 @@ export const createProxyResources = (utils: Utils): ProxyResources => {
     const liveEnv: Record<string, string> = {};
     if ((process.env.DEMO_MODE ?? 'cached') === 'live') {
       liveEnv.RAZORPAY_MCP_BIN = '/usr/local/bin/razorpay-mcp-server';
+      // A Lambda doesn't set HOME, and razorpay-mcp-server needs it (else
+      // "Error: $HOME is not defined"). /tmp is the only writable path in Lambda.
+      liveEnv.HOME = '/tmp';
       if (process.env.RAZORPAY_KEY_ID) liveEnv.RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
       if (process.env.RAZORPAY_KEY_SECRET) liveEnv.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
     }
