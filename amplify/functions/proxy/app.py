@@ -120,6 +120,13 @@ def create_app(
         else PolicyEngine(policy_dir or config.policy_dir(), overrides=policy_overrides)
     )
     upstream = upstream if upstream is not None else get_upstream()
+    # Keep a cached executor alongside the primary upstream so a single call can
+    # opt into cached execution per-request (payload.meta.execute_cached) — the
+    # console stress-test sets it to stay fast/deterministic even when the proxy
+    # is globally DEMO_MODE=live. Reuse `upstream` if it's already the cached one.
+    from proxy.upstream.cached import CachedUpstream
+
+    cached_upstream = upstream if isinstance(upstream, CachedUpstream) else CachedUpstream()
     approvals = approvals if approvals is not None else config.get_approval_queue()
     metrics = metrics if metrics is not None else MetricsAccumulator()
     decisions_feed: deque[DecisionRecord] = deque(maxlen=_FEED_SIZE)
@@ -158,7 +165,8 @@ def create_app(
 
         if result.decision == "allow":
             status = "executed"
-            upstream_result = asdict(await upstream.execute(payload.tool, payload.arguments))
+            executor = cached_upstream if payload.meta.execute_cached else upstream
+            upstream_result = asdict(await executor.execute(payload.tool, payload.arguments))
         else:
             status = "pending_approval" if result.decision == "escalate" else "blocked"
             upstream_result = None

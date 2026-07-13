@@ -243,7 +243,10 @@ function buildToolCall(tool, amount, payee, extra = {}) {
   if (payee) context.payee = payee;
   if (extra.provenance) context.provenance = extra.provenance;
   const payload = { agent_id: AGENT, tool, arguments: args, context };
-  if (extra.meta) payload.meta = extra.meta;
+  // Console scenarios stress-test the POLICIES — force cached execution
+  // per-request so they stay fast/deterministic even when the proxy is globally
+  // live (the Nova playground's own calls run live). The decision is identical.
+  payload.meta = Object.assign({ execute_cached: true }, extra.meta || {});
   return payload;
 }
 const LIVE_OPS = {

@@ -45,9 +45,16 @@ class ToolCallMeta(BaseModel):
     ``labeled_legit`` marks a call as known-good traffic for the clean-pass
     precision test — if a labeled-legit call is denied or escalated, that is
     a false block, tracked in ``GET /metrics``.
+
+    ``execute_cached`` forces THIS call's upstream execution through the cached
+    (replayed) executor even when the proxy is globally in DEMO_MODE=live. The
+    console stress-test sets it so its scenarios run fast and deterministically,
+    while the Nova playground's own calls (no flag) still hit the live MCP. The
+    policy DECISION is identical either way — this only changes execution.
     """
 
     labeled_legit: bool = False
+    execute_cached: bool = False
 
 
 class ToolCallRequest(BaseModel):
